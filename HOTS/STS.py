@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 class STS(object):
-    def __init__(self, tau, R, ListPolarities, ImageSize ,verbose=0, initial_time=0, sigma=None):
+    def __init__(self, tau, R, ListPolarities, ImageSize ,verbose=0, initial_time=100, sigma=None):
         self.verbose=verbose
         self.tau = tau
         self.R = R
@@ -41,19 +41,17 @@ class STS(object):
             if t<t_previous:
                 self.ListOfTimeMatrix = np.zeros((self.nb_polarities, self.width, self.height)) - self.initial_time
 
-            x,y = addr + self.R
+            x, y = addr + self.R
             idx_pola = self.ListPolarities.index(pol)
             self.ListOfTimeMatrix[idx_pola, x, y] = t
             LocalTimeMatrix = self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
-            t_max = np.amax(LocalTimeMatrix)
-            #print(t_max,t)
             SI = np.exp(-(t-LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities), self.area))
-            self.Surface[idx_event,:,:] = SI*self.mask
+            self.Surface[idx_event,:,:] = SI#SI*self.mask
             t_previous = t
             if idx_event == stop:
                 break
 
-            tac = time.time()
-            if self.verbose != 1:
-                print('Generation of SpatioTemporal Surface in ------ {0:.2f} s'.format(tac-timer))
-            return self.Surface
+        tac = time.time()
+        if self.verbose != 0:
+            print('Generation of SpatioTemporal Surface in ------ {0:.2f} s'.format((tac-timer)))
+        return self.Surface
