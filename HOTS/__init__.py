@@ -19,6 +19,7 @@ Pattern Recognition' Xavier Lagorce, Garrick Orchard, Fransesco Gallupi, And Rya
 # from .shl_encode import *
 # from .shl_learn import *
 from HOTS import STS
+from HOTS import Event
 #from shl_scripts import shl_encode
 #from shl_scripts import shl_learn
 #from shl_scripts import shl_experiments
