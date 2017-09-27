@@ -44,8 +44,8 @@ class STS(object):
             x, y = addr + self.R
             idx_pola = self.ListPolarities.index(pol)
             self.ListOfTimeMatrix[idx_pola, x, y] = t
-            LocalTimeMatrix = self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
-            SI = np.exp(-(t-LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities), self.area))
+            self.LocalTimeMatrix = self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
+            SI = np.exp(-(t-self.LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities), self.area))
             self.Surface[idx_event,:,:] = SI#SI*self.mask
             t_previous = t
             if idx_event == stop:
