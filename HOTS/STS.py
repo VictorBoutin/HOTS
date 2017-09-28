@@ -30,9 +30,9 @@ class STS(object):
 
     def create(self, event, stop=None):
         if stop is not None :
-            self.Surface = np.zeros((stop+1, self.nb_polarities, self.area))
+            self.Surface = np.zeros((stop+1, self.nb_polarities * self.area))
         else :
-            self.Surface = np.zeros((event.address.shape[0], self.nb_polarities, self.area))
+            self.Surface = np.zeros((event.address.shape[0], self.nb_polarities * self.area))
 
         timer = time.time()
         idx=0
@@ -45,8 +45,8 @@ class STS(object):
             idx_pola = self.ListPolarities.index(pol)
             self.ListOfTimeMatrix[idx_pola, x, y] = t
             self.LocalTimeMatrix = self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
-            SI = np.exp(-(t-self.LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities), self.area))
-            self.Surface[idx_event,:,:] = SI#SI*self.mask
+            SI = np.exp(-(t-self.LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities)* self.area))
+            self.Surface[idx_event,:] = SI#SI*self.mask
             t_previous = t
             if idx_event == stop:
                 break
