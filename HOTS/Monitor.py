@@ -4,9 +4,11 @@ from pylab import *
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def dispo(nb_center,pola):
-    if nb_center*pola > 4:
-        dispo = (((nb_center*pola)//4 )+1,4)
+def dispo(pola,nb_center=None):
+    if nb_center is None : nb_center =1
+
+    if nb_center*pola >= 8:
+        dispo = (((nb_center*pola)//8 )+1,8)
     else :
         dispo = (nb_center,pola)
     return dispo
@@ -30,8 +32,7 @@ def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
     R = int((size-1)/2)
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0)
     X,Y = np.meshgrid(np.arange(-R,R+1),np.arange(-R,R+1))#,indexing='ij')
-    disp = dispo(nb_center,nb_polarities)
-    print(disp)
+    disp = dispo(nb_polarities,nb_center)
     #fig = plt.figure(figsize=(disp[1]*3,disp[0]*3))
     fig = plt.figure(figsize=(12,12*disp[0]/disp[1]),subplotpars=subplotpars)
     for idx_surf,each_surf in enumerate(Surface):
@@ -53,7 +54,7 @@ def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
 
 
 def DisplaySurface2D(Surface,nb_polarities):
-    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.1)
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
     nb_center = Surface.shape[0]#len(ClusterCenter)
 
     if len(Surface.shape) == 2:
@@ -61,7 +62,7 @@ def DisplaySurface2D(Surface,nb_polarities):
         Surface = Surface.reshape((nb_center,nb_polarities,area))
     else :
         area = int(Surface.shape[2])
-    disp = dispo(nb_center,nb_polarities)
+    disp = dispo(nb_polarities,nb_center)
     #fig, axs = plt.subplots(nb_cluster, nb_polarities, figsize=(10, 10*nb_cluster/nb_polarities), subplotpars=subplotpars)
     fig = plt.figure(figsize=(12,12*disp[0]/disp[1]),subplotpars=subplotpars)
     dim_patch = int(np.sqrt(area))
@@ -80,3 +81,43 @@ def DisplaySurface2D(Surface,nb_polarities):
             ax.set_yticks(())
             ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 8)
             idx=idx+1
+
+def GenerateAM(Event,Cluster,ImageSize, mode='separate'):
+    nb_cluster = Cluster.nb_cluster
+    if mode == 'separate':
+        activation_map = np.zeros((nb_cluster,ImageSize[0],ImageSize[1]))
+    elif mode == 'global':
+        activation_map = np.zeros(ImageSize)
+    else :
+        raise KeyError('the mode argument is not valid')
+    for idx_event,ev in enumerate(Event.polarity) :
+        address_int = Event.address[idx_event,:]
+        x,y = address_int[0],address_int[1]
+
+        if mode == 'global' :
+            activation_map[x,y]= ev+1
+        else :
+            for i in range(nb_cluster):
+                activation_map[i,x,y] = 0
+            try :
+                activation_map[ev,x,y] = 1
+            except IndexError :
+                print(ev,idx_event)
+    return activation_map
+
+def DisplayAM(activation_map):
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
+    nb_map = activation_map.shape[0]#len(ClusterCenter)
+    disp = dispo(nb_map)
+    fig = plt.figure(figsize=(10,10*disp[0]/disp[1]),subplotpars=subplotpars)
+    idx=0
+    for idx_map, each_map in enumerate(activation_map):
+        ax = fig.add_subplot(disp[0],disp[1],idx+1)
+        cmin = 0
+        cmax = 1
+        ax.imshow(each_map, cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
+                interpolation='nearest')
+        ax.set_xticks(())
+        ax.set_yticks(())
+        ax.set_title('Map Cluster {0}'.format(idx_map),fontsize= 8)
+        idx=idx+1
