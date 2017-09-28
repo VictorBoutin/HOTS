@@ -2,7 +2,10 @@ import scipy.io
 import numpy as np
 
 class Event(object):
-    #def __init__(self):
+    def __init__(self):
+        self.polarity = np.zeros(1)
+        self.address = np.zeros(1)
+        self.time = np.zeros(1)
 
     def LoadFromMat(self,path, image_number=None):
         '''
@@ -63,7 +66,16 @@ class Event(object):
         self.change_idx.append(absolute_idx)
         return self.change_idx
 
+    def copy(self):
+        '''
+        copy the address, polarity and timing to another event
+        '''
+        event_output = Event()
+        event_output.address = self.address.copy()
+        event_output.polarity = self.polarity.copy()
+        event_output.time = self.time.copy()
 
+        return event_output
 
 class Filters(object):
     def __init__(self, events):
