@@ -13,6 +13,28 @@ def dispo(pola,nb_center=None):
         dispo = (nb_center,pola)
     return dispo
 
+def DisplayImage(list_of_event, multi_image=0):
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
+    if type(list_of_event) is not list:
+        raise TypeError('the argument of the function should be a list of event object')
+    nb_of_image = len(list_of_event)
+    disp = dispo(nb_of_image)
+    fig = plt.figure(figsize=(5,5*disp[0]/disp[1]),subplotpars=subplotpars)
+    idx = 0
+    for each_event in list_of_event:
+        ax = fig.add_subplot(disp[0],disp[1],idx+1)
+        image = np.zeros(each_event.ImageSize)
+        if multi_image == 0 :
+            lst_idx = each_event.ChangeIdx[0] + 1
+            fst_idx = 0
+        else :
+            lst_idx = each_event.ChangeIdx[multi_image] + 1
+            fst_idx = each_event.ChangeIdx[multi_image-1]
+        image[each_event.address[fst_idx:lst_idx,0].T, each_event.address[fst_idx:lst_idx,1].T] = each_event.polarity[fst_idx:lst_idx].T
+        img = ax.imshow(image, interpolation='nearest')
+        ax.axis('off')
+        ax.set_title('Image {0}'.format(idx+1),fontsize= 8)
+        idx += 1
 
 def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
     mini = np.amin(Surface)-0.01
@@ -82,12 +104,12 @@ def DisplaySurface2D(Surface,nb_polarities):
             ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 8)
             idx=idx+1
 
-def GenerateAM(Event,Cluster,ImageSize, mode='separate'):
+def GenerateAM(Event,Cluster, mode='separate'):
     nb_cluster = Cluster.nb_cluster
     if mode == 'separate':
-        activation_map = np.zeros((nb_cluster,ImageSize[0],ImageSize[1]))
+        activation_map = np.zeros((nb_cluster,Event.ImageSize[0],Event.ImageSize[1]))
     elif mode == 'global':
-        activation_map = np.zeros(ImageSize)
+        activation_map = np.zeros(Event.ImageSize)
     else :
         raise KeyError('the mode argument is not valid')
     for idx_event,ev in enumerate(Event.polarity) :
@@ -115,9 +137,12 @@ def DisplayAM(activation_map):
         ax = fig.add_subplot(disp[0],disp[1],idx+1)
         cmin = 0
         cmax = 1
-        ax.imshow(each_map, cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
+        to_plot = ax.imshow(each_map, cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
                 interpolation='nearest')
         ax.set_xticks(())
         ax.set_yticks(())
         ax.set_title('Map Cluster {0}'.format(idx_map),fontsize= 8)
         idx=idx+1
+
+def DisplayHisto(freq,pola):
+    plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")
