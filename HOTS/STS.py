@@ -2,22 +2,15 @@ import numpy as np
 import time
 
 class STS(object):
-    def __init__(self, tau, R, ListPolarities, ImageSize ,verbose=0, initial_time=100, sigma=None):
+    def __init__(self, tau, R ,verbose=0, initial_time=100, sigma=None):
         self.verbose=verbose
         self.tau = tau
         self.R = R
-        self.ListPolarities = ListPolarities
-        self.nb_polarities = len(self.ListPolarities)
 
         self.RF_diam = 2*self.R + 1
         self.area = self.RF_diam**2
 
-        self.ImageSize = ImageSize
-        self.width = self.ImageSize[0] + 2*self.R
-        self.height = self.ImageSize[1] + 2*self.R
-
         self.initial_time = initial_time
-        self.ListOfTimeMatrix = np.zeros((self.nb_polarities, self.width,self.height))-self.initial_time
 
         self.X_p, self.Y_p = np.meshgrid(np.arange(-self.R, self.R+1),
                                          np.arange(-self.R, self.R+1), indexing='ij')
@@ -29,6 +22,14 @@ class STS(object):
         self.mask = self.mask.reshape((1, self.mask.shape[0]*self.mask.shape[1]))
 
     def create(self, event, stop=None):
+        self.ListPolarities = event.ListPolarities
+        self.nb_polarities = len(self.ListPolarities)
+        
+        self.width = event.ImageSize[0] + 2*self.R
+        self.height = event.ImageSize[1] + 2*self.R
+        self.ListOfTimeMatrix = np.zeros((self.nb_polarities, self.width,self.height))-self.initial_time
+
+
         if stop is not None :
             self.Surface = np.zeros((stop+1, self.nb_polarities * self.area))
         else :

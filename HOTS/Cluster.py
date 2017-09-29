@@ -1,6 +1,7 @@
 import time
 import numpy as np
 
+
 from HOTS.Tools import EuclidianNorm
 
 
@@ -8,17 +9,11 @@ class Cluster(object):
     def __init__(self, nb_cluster, verbose=0):
         self.nb_cluster = nb_cluster
         self.verbose = verbose
-        #self.nb_polarity = nb_polarity
+        self.prototype = np.zeros(0)
         #self.area = area
 
     def test(self,to_print):
         print(to_print)
-
-    def save(self,filename):
-        print('la fonction est a faire')
-
-    def load(self,filename):
-        print('la fonction est a faire')
 
 class CustomKmeans(Cluster):
     def __init__(self,nb_cluster, verbose=0):
@@ -71,4 +66,5 @@ class CustomKmeans(Cluster):
             output_distance[idx] = np.amin(Euclidian_distance)
         event_output = event.copy()
         event_output.polarity = polarity
+        event_output.ListPolarities= list(np.arange(self.nb_cluster))
         return event_output, output_distance

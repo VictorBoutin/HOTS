@@ -2,22 +2,31 @@ import scipy.io
 import numpy as np
 
 class Event(object):
-    def __init__(self):
+    '''
+    Events is a class representing an event with all his attribute
+    ATTRIBUTE
+        + polarity : np.array of shape [nb_event] with the polarity number of each event
+        + address : np array of shape [nb_event, 2] with the x and y of each event
+        + time : np.array of shape [nb_event] with the time stamp of each event
+        + ImageSize : tuple of shape 2, representing the maximum window where an event could appear
+        + ListPolarities : list of the polarity we want to keep
+        + ChangeIdx : list composed by the last index of event of each event
+    '''
+    def __init__(self,ImageSize,ListPolarities):
         self.polarity = np.zeros(1)
         self.address = np.zeros(1)
         self.time = np.zeros(1)
-
+        self.ImageSize = ImageSize
+        #self.event_nb = np.zeros(1)
+        self.ListPolarities = ListPolarities
+        self.ChangeIdx = list()
+        ## Idée, faire un mécanisme pour vérifier qu'il n'y a pas d'adresse en dehors de l'image
     def LoadFromMat(self,path, image_number=None):
         '''
-        Load Events from a .npy file:
+        Load Events from a .mat file. Only the events contained in ListPolarities are kept:
         INPUT
             + path : a string which is the path of the ;npy file (ex : './data_cache/ExtractedStabilized.mat')
             + image_number : list with all the numbers of image to load
-        OUTPUT
-            + address_matrix : np array of shape [nb_event, 2] with the x and y of each event
-            + time_matrix : np.array of shape [nb_event] with the time stamp of each event
-            + polarity_matrix : np.array of shape [nb_event] with the polarity number of each event
-            + event_matrix : np.array of shape [nb_event] with the number of the event
         '''
         obj = scipy.io.loadmat(path)
         ROI = obj['ROI'][0]
@@ -33,85 +42,67 @@ class Event(object):
             each_address = np.hstack((image[1].T - 1, image[0].T - 1)).astype(int)
             each_time = image[3].transpose()*1e-6
             each_polarity = image[2].transpose().astype(int)
-            each_event_nb = np.arange(each_address.shape[0])
             if idx!=0 :
                 self.address = np.vstack((self.address, each_address))
                 self.polarity = np.concatenate((self.polarity, each_polarity))
                 self.time = np.concatenate((self.time, each_time))
-                self.event_nb = np.concatenate((self.event_nb, each_event_nb))
             else :
                 self.address = each_address
                 self.polarity = each_polarity
                 self.time = each_time
-                self.event_nb = each_event_nb
+        self.polarity = self.polarity[:,0]
+        self.time = self.time[:,0]
 
-
-        return self.address, self.time[:,0], self.polarity[:,0], self.event_nb
+        ## Filter only the wanted polarity
+        filt = np.in1d(self.polarity,np.array(self.ListPolarities))
+        self.filter(filt,mode='itself')
 
     def SeparateEachImage(self):
         '''
-        find the separation event index if more than one image is represented in self.event_nb
-        INPUT
-            ...
-        OUTPUT
-            + change_idx : list of shape [nb_of_change+1] indicating all the index of change
-        '''
+        find the separation event index if more than one image is represented, and store it into
+        self.ChangeIDX
 
-        self.change_idx = [0]
-        old_event = 0
-        for absolute_idx, event_number in enumerate(self.event_nb):
-            if old_event > event_number:
-                self.change_idx.append(absolute_idx-1)
-            old_event = event_number
-        self.change_idx.append(absolute_idx)
-        return self.change_idx
+        '''
+        old_time = 0
+        self.ChangeIdx = list()
+        for idx, each_time in enumerate(self.time):
+            if each_time<old_time:
+                self.ChangeIdx.append(idx-1)
+            old_time = each_time
+        self.ChangeIdx.append(idx)
 
     def copy(self):
         '''
-        copy the address, polarity and timing to another event
+        copy the address, polarity, timing, and event_nb to another event
+        OUTPUT :
+            + event_output = event object which is the copy of self
         '''
-        event_output = Event()
+        event_output = Event(self.ImageSize,self.ListPolarities)
         event_output.address = self.address.copy()
         event_output.polarity = self.polarity.copy()
         event_output.time = self.time.copy()
+        event_output.ChangeIdx = self.ChangeIdx
 
         return event_output
 
-class Filters(object):
-    def __init__(self, events):
-        self.events = events
-
-    def Neighbour(self, threshold, neighbourhood, image_size):
+    def filter(self,filt,mode=None):
         '''
-        keep the event if the number of event in a neighbour of size [2*neighbourhood+1,2*neighbourhood+1]
-        is over the threshold value
-        INPUT
-            threshold : (int), specify the minimum number of neighbour
-            neighbourhood : (int), specify the size of the neighbourhood to take into account
-            image_size : (tuple of shape 2), specify the size of the image
-        OUTPUT
-            address : the filtered address
-            time : the filtered time
-            polarity : the filtered polarity
-            event_nb : the filtered event_nb
+        filter the event is mode is 'itself', or output another event else
+        INPUT :
+            + filt : np.array of boolean having the same dimension than self.polarity
+        OUTPUT :
+            + event_output : return an event, which is the filter version of self, only if mode
+                is not 'itself'
         '''
-        filt = np.zeros(self.events.address.shape[0]).astype(bool)
-        idx_old = 0
-        accumulated_image = np.zeros((image_size[0]+2*neighbourhood,image_size[1]+2*neighbourhood))
-        X_p, Y_p = np.meshgrid(np.arange(-neighbourhood,neighbourhood+1),np.arange(-neighbourhood,neighbourhood+1),indexing='ij')
-        for idx, (each_address, each_pola,each_time) in enumerate(zip(self.events.address, self.events.polarity,self.events.time)):
-            if self.events.event_nb[idx_old]>self.events.event_nb[idx] :
-                accumulated_image = np.zeros((image_size[0]+2*neighbourhood,image_size[1]+2*neighbourhood))
-            x_translated = each_address[0] + neighbourhood
-            y_translated = each_address[1] + neighbourhood
-
-            accumulated_image[x_translated,y_translated]= 1
-            nb_voisin = np.sum(accumulated_image[x_translated+X_p, y_translated+Y_p])
-            if nb_voisin>threshold:
-                filt[idx]=True
-            idx_old = idx
-        self.events.address = self.events.address[filt]
-        self.events.time = self.events.time[filt][:,0]
-        self.events.polarity = self.events.polarity[filt][:,0]
-        self.events.event_nb = self.events.event_nb[filt]
-        return self.events.address, self.events.time, self.events.polarity, self.events.event_nb
+        if mode == 'itself':
+            self.address = self.address[filt]
+            self.time = self.time[filt]
+            self.polarity = self.polarity[filt]
+            self.SeparateEachImage()
+        else :
+            event_output = Event(self.ImageSize, self.ListPolarities)
+            event_output.address = self.address[filt]
+            event_output.time = self.time[filt]
+            event_output.polarity = self.polarity[filt]
+            event_output.SeparateEachImage()
+            return event_output
