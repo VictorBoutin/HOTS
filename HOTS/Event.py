@@ -1,5 +1,6 @@
 import scipy.io
 import numpy as np
+from HOTS.Tools import LoadObject
 
 class Event(object):
     '''
@@ -12,7 +13,7 @@ class Event(object):
         + ListPolarities : list of the polarity we want to keep
         + ChangeIdx : list composed by the last index of event of each event
     '''
-    def __init__(self,ImageSize,ListPolarities):
+    def __init__(self,ImageSize,ListPolarities,OutOnePolarity=False):
         self.polarity = np.zeros(1)
         self.address = np.zeros(1)
         self.time = np.zeros(1)
@@ -20,8 +21,10 @@ class Event(object):
         #self.event_nb = np.zeros(1)
         self.ListPolarities = ListPolarities
         self.ChangeIdx = list()
+        self.type = 'event'
+        self.OutOnePolarity=OutOnePolarity
         ## Idée, faire un mécanisme pour vérifier qu'il n'y a pas d'adresse en dehors de l'image
-    def LoadFromMat(self,path, image_number=None):
+    def LoadFromMat(self,path, image_number=None, verbose=0):
         '''
         Load Events from a .mat file. Only the events contained in ListPolarities are kept:
         INPUT
@@ -35,8 +38,8 @@ class Event(object):
             image_number = [image_number]
         elif type(image_number) is not list:
             raise TypeError('the type of argument image_number should be int or list')
-
-        print("chargement des images {0}".format(image_number))
+        if verbose>0:
+            print("chargement des images {0}".format(image_number))
         for idx, each_image in enumerate(image_number):
             image = ROI[each_image][0,0]
             each_address = np.hstack((image[1].T - 1, image[0].T - 1)).astype(int)
@@ -56,6 +59,10 @@ class Event(object):
         ## Filter only the wanted polarity
         filt = np.in1d(self.polarity,np.array(self.ListPolarities))
         self.filter(filt,mode='itself')
+
+        if self.OutOnePolarity == True :
+            self.polarity = np.ones_like(self.polarity)
+            self.ListPolarities = [1]
 
     def SeparateEachImage(self):
         '''
@@ -82,6 +89,8 @@ class Event(object):
         event_output.polarity = self.polarity.copy()
         event_output.time = self.time.copy()
         event_output.ChangeIdx = self.ChangeIdx
+        event_output.type = self.type
+        event_output.OutOnePolarity = self.OutOnePolarity
 
         return event_output
 
@@ -100,9 +109,50 @@ class Event(object):
             self.polarity = self.polarity[filt]
             self.SeparateEachImage()
         else :
-            event_output = Event(self.ImageSize, self.ListPolarities)
+            event_output = self.copy()
             event_output.address = self.address[filt]
             event_output.time = self.time[filt]
             event_output.polarity = self.polarity[filt]
             event_output.SeparateEachImage()
             return event_output
+
+
+
+def SimpleAlphabet(NbTrainingData,NbTestingData,Path=None,LabelPath=None, ClusteringData=None, OutOnePolarity = False, ListPolarities=[-1,1], verbose=0):
+    if Path is None :
+        Path = '../Data/ExtractedStabilized.mat'
+
+    if LabelPath is None :
+        label_list=LoadObject('../Data/alphabet_label.pkl')
+    else :
+        label_list=LoadObject(LabelPath)
+
+    if NbTrainingData+NbTestingData > 76:
+        raise NameError('Overlaping between TrainingData and Testing Data')
+    event_tr = Event(ImageSize=(32,32), ListPolarities=ListPolarities, OutOnePolarity=OutOnePolarity)
+    event_te = Event(ImageSize=(32,32), ListPolarities=ListPolarities, OutOnePolarity=OutOnePolarity)
+    event_cl = Event(ImageSize=(32,32), ListPolarities=ListPolarities ,OutOnePolarity=OutOnePolarity)
+    event_tr.LoadFromMat(Path,image_number=list(np.arange(0,NbTrainingData)),verbose=verbose)
+    event_te.LoadFromMat(Path,image_number=list(np.arange(NbTrainingData, NbTrainingData+NbTestingData)),verbose=verbose)
+
+    if ClusteringData is None :
+        event_cl = event_tr
+    else     :
+        event_cl.LoadFromMat(Path,image_number=ClusteringData,verbose=verbose)
+
+    ## Generate Groud Truth Label
+    for idx,img in enumerate(np.arange(0,NbTrainingData)):
+        if idx!= 0:
+            label_tr = np.vstack((label_tr,label_list[img][0]))
+        else:
+            label_tr = label_list[img][0]
+
+    for idx,img in enumerate(np.arange(NbTrainingData,NbTrainingData+NbTestingData)):
+        if idx!= 0:
+            label_te = np.vstack((label_te,label_list[img][0]))
+        else:
+            label_te = label_list[img][0]
+
+
+
+    return event_tr, event_te, event_cl, label_tr, label_te

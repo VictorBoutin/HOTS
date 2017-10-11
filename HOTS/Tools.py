@@ -33,3 +33,6 @@ def GenerateHistogram(event):
             freq_mat = freq
         last_change=each_change
     return freq_mat, pola
+
+#def GenerateLabelList(label_list):
+#

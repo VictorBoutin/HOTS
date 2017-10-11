@@ -1,7 +1,6 @@
 import numpy as np
 from HOTS.STS import STS
-from HOTS.Cluster import CustomKmeans
-
+from HOTS.Cluster import CustomKmeans, KmeansMaro, KmeansMaroHomeo
 
 class Layer(object):
     '''
@@ -10,35 +9,31 @@ class Layer(object):
         self.output : the event in output
     '''
 
-    def __init__(self,event,verbose=0):
-        self.input = event
-        self.output = event.copy()
+    def __init__(self, verbose=0):
+        #self.input = Event()
+        #self.output = event.copy()
         self.verbose = verbose
+        self.type = 'void'
 
     def GenerateAM(self):
         pass
 
-    def GenerateHistogram(self):
-        #if len(self.output.ChangeIdx) == 1:
-        last_change=0
-        for idx, each_change in enumerate(self.output.ChangeIdx):
-            freq, pola = np.histogram(self.output.polarity[last_change:each_change+1],bins=len(self.output.ListPolarities))
-            if idx != 0:
-                freq_mat = np.vstack((freq_mat,freq))
-            else :
-                freq_mat = freq
-            last_change=each_change
-        return freq_mat, pola
+    def Train(self):
+        if self.type == 'ClusteringLayer':
+            pass
 
-class Filter(Layer):
+class FilterNHBD(Layer):
     '''
     General Class for the Filters. This inherit all the methods and attribute of the Layer Class
     The method of this class correspond to different type of filters
     '''
-    def __init__(self,event,verbose=0):
-        Layer.__init__(self,event,verbose)
+    def __init__(self, threshold, neighbourhood, verbose=0):
+        Layer.__init__(self, verbose)
+        self.type = 'Filter'
+        self.threshold = threshold
+        self.neighbourhood = neighbourhood
 
-    def FilterNHBD(self,threshold, neighbourhood):
+    def RunFilter(self, event):
         '''
         Filter that keep the event if the number of event in a neighbour of size [2*neighbourhood+1,2*neighbourhood+1]
         is over the threshold value
@@ -48,20 +43,21 @@ class Filter(Layer):
         OUTPUT
             + event : (event object) the filtered event
         '''
+        self.input = event
         filt = np.zeros(self.input.address.shape[0]).astype(bool)
         idx_old = 0
-        accumulated_image = np.zeros((self.input.ImageSize[0]+2*neighbourhood,self.input.ImageSize[1]+2*neighbourhood))
-        X_p, Y_p = np.meshgrid(np.arange(-neighbourhood,neighbourhood+1),np.arange(-neighbourhood,neighbourhood+1),indexing='ij')
+        accumulated_image = np.zeros((self.input.ImageSize[0]+2*self.neighbourhood,self.input.ImageSize[1]+2*self.neighbourhood))
+        X_p, Y_p = np.meshgrid(np.arange(-self.neighbourhood,self.neighbourhood+1),np.arange(-self.neighbourhood,self.neighbourhood+1),indexing='ij')
         for idx, (each_address, each_pola,each_time) in enumerate(zip(self.input.address, self.input.polarity,self.input.time)):
             #if self.input.event_nb[idx_old]>self.input.event_nb[idx] :
             if self.input.time[idx_old]>self.input.time[idx] :
-                accumulated_image = np.zeros((self.input.ImageSize[0]+2*neighbourhood,self.input.ImageSize[1]+2*neighbourhood))
-            x_translated = each_address[0] + neighbourhood
-            y_translated = each_address[1] + neighbourhood
+                accumulated_image = np.zeros((self.input.ImageSize[0]+2*self.neighbourhood,self.input.ImageSize[1]+2*self.neighbourhood))
+            x_translated = each_address[0] + self.neighbourhood
+            y_translated = each_address[1] + self.neighbourhood
 
             accumulated_image[x_translated,y_translated]= 1
             nb_voisin = np.sum(accumulated_image[x_translated+X_p, y_translated+Y_p])
-            if nb_voisin>threshold:
+            if nb_voisin>self.threshold:
                 filt[idx]=True
             idx_old = idx
         self.output = self.input.filter(filt)
@@ -71,32 +67,81 @@ class ClusteringLayer(Layer):
     '''
     Class of a layer associating SpatioTemporal surface from input event to a Cluster, and then outputing another event
     INPUT :
-        + event : and event object serving as input
+        + tau : (int), the time constant of the spatiotemporal surface
+        + R : (int), the size of the neighbourhood taken into consideration in the time surface
     '''
-    def __init__(self, event, verbose=0):
-        Layer.__init__(self, event, verbose)
-
-    def RunLayer(self, tau, R, Cluster):
+    def __init__(self, tau, R,  ThrFilter=2, verbose=0, mode='standard'):
+        Layer.__init__(self, verbose)
+        self.type = 'Layer'
+        self.tau = tau
+        self.R = R
+        self.ThrFilter = ThrFilter
+        self.mode = mode
+        if self.mode not in ['standard','Maro','MaroExp','MaroExpHomeo'] :
+            raise NameError('mode key should be standard ar Maro')
+    def RunLayer(self, event, Cluster):
         '''
-        Run the layer
+        Associate each polarity of the event input to the prototype of the cluster
         INPUT :
-            + tau : (int), the time constant of the spatiotemporal surface
-            + R : (int), the size of the neighbourhood taken into consideration in the time surface
+            + event (<object Event>) : input event
+            + Cluster (<object Cluster>) : Cluster, previously trained,
         OUTPUT :
-            + self.output : (event object)
+            + self.output : (<object Event>) : Event with new polarities corresponding to the closest cluster center
         '''
-        self.SpTe_Layer = STS(tau=tau, R=R, verbose=self.verbose)
-        Surface_Layer = self.SpTe_Layer.create(event=self.input)
-        self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = self.input)
+        self.input = event
+        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
+        if self.mode == 'standard':
+            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
+            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = self.input)
+        elif self.mode == 'Maro':
+            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='linear')
+            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
+        elif self.mode == 'MaroExp':
+            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
+            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
+        elif self.mode == 'MaroExpHomeo':
+            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
+            #event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = self.input)
         return self.output
 
-    def TrainLayer(self, tau, R, nb_cluster):
+    def TrainLayer(self, event, nb_cluster, record_each=0, NbCycle=1):
         '''
-        Comment to do
+        Learn the Cluster
+        INPUT :
+            + event (<object event>) : input event
+            + nb_cluster(<int>) : nb of centers
+            + record_each (<int>) : record the convergence error each reach_each
+            + NbCycle (<int>) : number of time we repeat the learning process. Need to be used when not enought training data to reach the convergence
+
+        OUTPUT :
+            + output (<object event>) : Event with new polarities corresponding to the closest cluster center
+            + ClusterLayer (<object Cluster) : Learnt cluster
         '''
-        self.SpTe_Layer= STS(tau=tau, R=R, verbose=self.verbose)
-        Surface_Layer = self.SpTe_Layer.create(event = self.input)
-        ClusterLayer = CustomKmeans(nb_cluster = nb_cluster,verbose=self.verbose)
-        Prototype = ClusterLayer.fit(self.SpTe_Layer)
-        self.output,_ = ClusterLayer.predict(STS=self.SpTe_Layer,event = self.input)
-        return self.output, ClusterLayer
+        self.input=event
+        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
+        if self.mode == 'standard' :
+            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
+            self.ClusterLayer = CustomKmeans(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
+            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
+            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = self.input)
+        elif self.mode == 'Maro' :
+            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='linear')
+            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
+            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
+            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
+        elif self.mode == 'MaroExp':
+            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
+            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
+            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
+            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
+        elif self.mode == 'MaroExpHomeo':
+            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
+            self.ClusterLayer = KmeansMaroHomeo(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
+            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
+            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = self.input)
+        return self.output, self.ClusterLayer
