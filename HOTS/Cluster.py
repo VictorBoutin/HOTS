@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from HOTS.Tools import EuclidianNorm
-
+import itertools
 
 class Cluster(object):
     def __init__(self, nb_cluster, record_each=0 ,verbose=0):
@@ -39,7 +39,8 @@ class CustomKmeans(Cluster):
         for each_cycle in range(NbCycle):
             nb_proto = np.zeros((self.nb_cluster)).astype(int)
             for idx, Si in enumerate(surface):
-                Distance_to_proto = EuclidianNorm(Si, self.prototype)
+                #Distance_to_proto = EuclidianNorm(Si, self.prototype)
+                Distance_to_proto = np.linalg.norm(Si - self.prototype,ord=2,axis=1)
                 closest_proto_idx = np.argmin(Distance_to_proto)
                 pk = nb_proto[closest_proto_idx]
                 Ck = self.prototype[closest_proto_idx,:]
@@ -80,7 +81,8 @@ class CustomKmeans(Cluster):
         polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
 
         for idx,surface in enumerate(to_predict):
-            Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            #Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            Euclidian_distance = np.linalg.norm(surface-self.prototype,ord=2,axis=1)
             polarity[idx] = np.argmin(Euclidian_distance)
             output_distance[idx] = np.amin(Euclidian_distance)
         if event is not None :
@@ -93,10 +95,14 @@ class CustomKmeans(Cluster):
 
 
 class KmeansMaro(Cluster):
-    def __init__(self,nb_cluster, record_each=0, verbose=0):
+    def __init__(self,nb_cluster, record_each=0, verbose=0, eta=None):
         Cluster.__init__(self, nb_cluster, record_each, verbose)
+        if eta is None :
+            self.eta = 1
+        else :
+            self.eta = eta
 
-    def fit (self,STS, init=None, NbCycle=1):
+    def fit (self,STS, init=None, NbCycle=1,eta=None):
         tic = time.time()
 
         surface = STS.Surface.copy()
@@ -111,7 +117,131 @@ class KmeansMaro(Cluster):
         for each_cycle in range(NbCycle):
             for idx, Si in enumerate(surface):
                 # find the closest prototype
-                Distance_to_proto = EuclidianNorm(Si, self.prototype)
+                #Distance_to_proto = EuclidianNorm(Si, self.prototype)
+                Distance_to_proto = np.linalg.norm(Si - self.prototype,ord=2,axis=1)
+                closest_proto_idx = np.argmin(Distance_to_proto)
+                Ck = self.prototype[closest_proto_idx,:]
+                last_time_activated[closest_proto_idx] = idx
+                ## Updating the prototype
+                pk = nb_proto[closest_proto_idx]
+                alpha = 1/(1+pk)
+                beta = np.dot(Ck, Si)/(np.sqrt(np.dot(Si, Si))*np.sqrt(np.dot(Ck, Ck)))
+                Ck_t = Ck + self.eta*alpha*beta*(Si-Ck)
+
+                # Updating the number of selection
+                nb_proto[closest_proto_idx] += 1
+                self.prototype[closest_proto_idx, :] = Ck_t
+
+                critere = (idx-last_time_activated)>10000
+                critere2 = nb_proto<25000
+                if np.any(critere2*critere):
+                    cri = nb_proto[critere]<25000
+                    idx_critere = np.arange(0,self.nb_cluster)[critere][cri]
+                    for idx_c in idx_critere:
+                        Ck = self.prototype[idx_c,:]
+                        beta = np.dot(Ck, Si)/(np.sqrt(np.dot(Si, Si))*np.sqrt(np.dot(Ck, Ck)))
+                        Ck_t = Ck + 0.2*beta*(Si-Ck)
+                        self.prototype[idx_c,:]=Ck_t
+                if self.record_each != 0 :
+                    if idx_global % int(self.record_each) == 0 :
+                        output_distance = self.predict(STS,SurfaceFilter=1000)
+                        error = np.mean(output_distance)
+                        record_one = pd.DataFrame([{'error':error}],
+                                            index=[idx_global])
+                        self.record = pd.concat([self.record, record_one])
+                idx_global += 1
+
+        tac = time.time()
+        #self.prototype = prototype
+        self.nb_proto = nb_proto
+        if self.verbose > 0:
+            print('Clustering SpatioTemporal Surface in ------ {0:.2f} s'.format(tac-tic))
+
+        return self.prototype#,nb_proto,last_time_activated
+
+    def predict(self, STS, event=None, SurfaceFilter=None):
+        if SurfaceFilter == None:
+            to_predict = STS.Surface
+        else :
+            random_selection = np.random.permutation(np.arange(STS.Surface.shape[0]))[:SurfaceFilter]
+            to_predict = STS.Surface[random_selection]
+
+        if self.prototype is None :
+            raise ValueError('Train the Cluster before doing prediction')
+        polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
+
+        #diff = to_predict[:,:,np.newaxis]-self.prototype.T
+        #Euclidian_distance = np.linalg.norm(diff,axis=1)
+        #polarity = np.argmin(Euclidian_distance, axis=1)
+        #output_distance = np.amin(Euclidian_distance, axis=1)
+        for idx,surface in enumerate(to_predict):
+            #Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            Euclidian_distance = np.linalg.norm(surface-self.prototype,ord=2,axis=1)
+            polarity[idx] = np.argmin(Euclidian_distance)
+            output_distance[idx] = np.amin(Euclidian_distance)
+        if event is not None :
+            event_output = event.copy()
+            event_output.polarity = polarity
+            event_output.ListPolarities= list(np.arange(self.nb_cluster))
+            return event_output, output_distance
+        else :
+            return output_distance
+
+    def predict0(self, STS, event=None, SurfaceFilter=None, batch_size=20000):
+        if SurfaceFilter == None:
+            to_predict = STS.Surface
+        else :
+            random_selection = np.random.permutation(np.arange(STS.Surface.shape[0]))[:SurfaceFilter]
+            to_predict = STS.Surface[random_selection]
+
+        if self.prototype is None :
+            raise ValueError('Train the Cluster before doing prediction')
+        if to_predict.shape[0]<=batch_size :
+            batch_size = to_predict.shape[0]
+        n_batch = to_predict.shape[0] // batch_size
+        batches = np.array_split(to_predict, n_batch)
+
+        batches = itertools.cycle(batches)
+        polarity = np.zeros(to_predict.shape[0])
+        output_distance = np.zeros(to_predict.shape[0])
+        init_idx = 0
+        for ii, this_X in zip(range(n_batch), batches):
+            diff = this_X[:,:,np.newaxis] - self.prototype.T
+            end_idx = init_idx + this_X.shape[0]
+            norm1 = np.linalg.norm(diff, axis=1)
+            polarity[init_idx:end_idx] = np.argmin(norm1,axis=1)
+            output_distance[init_idx:end_idx] = np.amin(norm1,axis=1)
+            init_idx = end_idx
+        if event is not None :
+            event_output = event.copy()
+            event_output.polarity = polarity
+            event_output.ListPolarities= list(np.arange(self.nb_cluster))
+            return event_output, output_distance
+        else :
+            return output_distance
+
+class KmeansMaroFast(Cluster):
+    def __init__(self,nb_cluster, record_each=0, verbose=0, batch_size=10000):
+        Cluster.__init__(self, nb_cluster, record_each, verbose)
+
+    def fit (self,STS, init=None, NbCycle=1):
+        tic = time.time()
+
+        surface = STS.Surface.copy()
+
+        #print(surface.shape)
+        self.prototype=surface[:self.nb_cluster,:]
+
+
+
+        nb_proto = np.zeros((self.nb_cluster))
+        last_time_activated = np.zeros((self.nb_cluster)).astype(int)
+        idx_global = 0
+        for each_cycle in range(NbCycle):
+            for idx, Si in enumerate(surface):
+                # find the closest prototype
+                #Distance_to_proto = EuclidianNorm(Si, self.prototype)
+                Distance_to_proto = np.linalg.norm(Si - self.prototype,ord=2,axis=1)
                 closest_proto_idx = np.argmin(Distance_to_proto)
                 Ck = self.prototype[closest_proto_idx,:]
                 last_time_activated[closest_proto_idx] = idx
@@ -170,10 +300,42 @@ class KmeansMaro(Cluster):
 
         if self.prototype is None :
             raise ValueError('Train the Cluster before doing prediction')
+        #polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
+
+        diff = to_predict[:,:,np.newaxis]-self.prototype.T
+        Euclidian_distance = np.linalg.norm(diff,axis=1)
+        polarity = np.argmin(Euclidian_distance, axis=1)
+        output_distance = np.amin(Euclidian_distance, axis=1)
+        #for idx,surface in enumerate(to_predict):
+
+        #    #Euclidian_distance = EuclidianNorm(surface,self.prototype)
+        #    Euclidian_distance = np.linalg.norm(surface-self.prototype,ord=2,axis=1)
+        #    polarity[idx] = np.argmin(Euclidian_distance)
+        #    output_distance[idx] = np.amin(Euclidian_distance)
+        if event is not None :
+            event_output = event.copy()
+            event_output.polarity = polarity
+            event_output.ListPolarities= list(np.arange(self.nb_cluster))
+            return event_output, output_distance
+        else :
+            return output_distance
+
+
+    '''
+    def predict(self, STS, event=None, SurfaceFilter=None):
+        if SurfaceFilter == None:
+            to_predict = STS.Surface
+        else :
+            random_selection = np.random.permutation(np.arange(STS.Surface.shape[0]))[:SurfaceFilter]
+            to_predict = STS.Surface[random_selection]
+
+        if self.prototype is None :
+            raise ValueError('Train the Cluster before doing prediction')
         polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
 
         for idx,surface in enumerate(to_predict):
-            Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            #Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            Euclidian_distance = np.linalg.norm(surface-self.prototype,ord=2,axis=1)
             polarity[idx] = np.argmin(Euclidian_distance)
             output_distance[idx] = np.amin(Euclidian_distance)
         if event is not None :
@@ -183,22 +345,33 @@ class KmeansMaro(Cluster):
             return event_output, output_distance
         else :
             return output_distance
-
-class KmeansMaroHomeo(Cluster):
-    def __init__(self,nb_cluster, record_each=0, verbose=0, nb_quant=100, C=6, Norm_Type='standard'):
+        '''
+class KmeansHomeo(Cluster):
+    def __init__(self,nb_cluster, record_each=0, verbose=0, nb_quant=100,
+                    C=6, Norm_Type='max',eta=0.000005, eta_homeo=0.0005):
         Cluster.__init__(self, nb_cluster, record_each, verbose)
         self.nb_quant = nb_quant
         self.C = C
         self.Norm_Type = Norm_Type
         self.do_sym = False
-        self.eta = 0.02
-        self.eta_homeo = 0.02
 
-    def fit(self, X, batch_size=100, NbCycle=1, record_num_batches=100):
+        if eta is None :
+            self.eta = 0.000005
+        else :
+            self.eta = eta
+
+        if eta_homeo is None:
+            self.eta_homeo = 0.0005
+        else :
+            self.eta_homeo = eta_homeo
+
+        self.verbose = verbose
+
+    def fit(self, STS, batch_size=100, NbCycle=1, record_num_batches=10000):
         if self.record_each>0:
             import pandas as pd
             record = pd.DataFrame()
-
+        X = STS.Surface
         n_samples, n_pixels = X.shape
         X_train = X.copy()
         norm = self.norm(X_train, Norm_Type=self.Norm_Type)
@@ -209,10 +382,10 @@ class KmeansMaroHomeo(Cluster):
         #norm = self.norm(prototype, Norm_Type=self.Norm_Type)
         #prototype /= norm[:, np.newaxis]
 
-        print('apres', np.amax(prototype,axis=1), self.norm(prototype, Norm_Type=self.Norm_Type))
+        #print('apres', np.amax(prototype,axis=1), self.norm(prototype, Norm_Type=self.Norm_Type))
         #norm = np.amax(dictionary, axis=1) #np.sqrt(np.sum(dictionary**2,axis=1))
 
-        P_cum = np.linspace(0, 1, self.nb_quant, endpoint=True)[np.newaxis, :] * np.ones((self.nb_cluster, 1))
+        self.P_cum = np.linspace(0, 1, self.nb_quant, endpoint=True)[np.newaxis, :] * np.ones((self.nb_cluster, 1))
 
         # splits the whole dataset into batches
         n_batches = n_samples // batch_size
@@ -225,7 +398,7 @@ class KmeansMaroHomeo(Cluster):
         batches = itertools.cycle(batches)
 
         n_iter = int(NbCycle * n_samples)
-        print(n_iter)
+        #print(n_iter)
 
         for ii, this_X in zip(range(n_iter), batches):
             if this_X.ndim == 1:
@@ -235,7 +408,7 @@ class KmeansMaroHomeo(Cluster):
             #n_dictionary, n_pixels = dictionary.shape
             sparse_code = np.zeros((n_samples,self.nb_cluster))
 
-            if not P_cum is None:
+            if not self.P_cum is None:
                 #nb_quant = P_cum.shape[1]
                 stick = np.arange(self.nb_cluster)*self.nb_quant
 
@@ -244,24 +417,29 @@ class KmeansMaroHomeo(Cluster):
             for i_sample in range(n_samples):
                 c = corr[i_sample, :].copy()
                 #ind = np.argmax(c)
-                ind  = np.argmax(self.z_score(P_cum, self.prior(c), stick))
+                ind  = np.argmax(self.z_score(self.P_cum, self.prior(c), stick))
                 sparse_code[i_sample, ind] = c[ind]
                 Si = this_X[i_sample,:]
                 Ck = prototype[ind,:]
 
                 #alpha = 1/(1+pk)
                 beta = np.dot(Ck,Si)/(np.sqrt(np.dot(Si,Si))*np.sqrt(np.dot(Ck,Ck)))
-                prototype[ind,:] = Ck + self.eta*(Si - beta * Ck)
-                prototype[ind,:] /= self.norm(prototype[ind,:],Norm_Type=self.Norm_Type)
+                #prototype[ind,:] = Ck + self.eta*(Si - beta * Ck)
+                prototype[ind,:] = Ck + beta * self.eta * (Si - Ck)
+                #prototype[ind,:] /= self.norm(prototype[ind,:],Norm_Type=self.Norm_Type)
 
-            if ii % 5000 == 0:
+            norm = self.norm(prototype, Norm_Type=self.Norm_Type)
+
+            prototype /= norm[:, np.newaxis]
+
+            if self.verbose > 0 and ii % 5000 == 0:
                 print('{0} / {1}'.format(ii,n_iter))
 
             if self.record_each>0:
                 if ii % int(self.record_each) == 0:
                     from scipy.stats import kurtosis
                     indx = np.random.permutation(X_train.shape[0])[:record_num_batches]
-                    polarity = self.code(X_train[indx, :],prototype,P_cum,sparse=True)
+                    polarity = self.code(X_train[indx, :],prototype,self.P_cum,sparse=True)
                     error = np.linalg.norm(X_train[indx, :] - polarity @ prototype)/record_num_batches
                     active_probe = np.sum(polarity>0,axis=0)
                     #polarity, dist_to_cluster = Distance_Prediction(X_train[indx, :],dictionary)
@@ -270,15 +448,57 @@ class KmeansMaroHomeo(Cluster):
                                                 'histo':active_probe,
                                                 'var': np.var(active_probe)}],
                                             index=[ii])
-                    record = pd.concat([record, record_one])
+                    self.record = pd.concat([self.record, record_one])
 
-            P_cum = self.update_Pcum(P_cum, sparse_code)
+            self.P_cum = self.update_Pcum(self.P_cum, sparse_code)
+        self.prototype = prototype
+        return prototype
+        #if self.record_each==0:
+        #    return prototype, P_cum
+        #else:
+        #    return prototype, P_cum, record
 
-        if self.record_each==0:
-            return prototype, P_cum
-        else:
-            return prototype, P_cum, record
+    def predict(self, STS, event=None, SurfaceFilter=None):
+        if SurfaceFilter == None:
+            to_predict = STS.Surface
+        else :
+            random_selection = np.random.permutation(np.arange(STS.Surface.shape[0]))[:SurfaceFilter]
+            to_predict = STS.Surface[random_selection]
 
+        if self.prototype is None :
+            raise ValueError('Train the Cluster before doing prediction')
+        polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
+
+        for idx,surface in enumerate(to_predict):
+            Euclidian_distance = np.linalg.norm(surface-self.prototype,ord=2,axis=1)
+            #Euclidian_distance = EuclidianNorm(surface,self.prototype)
+            polarity[idx] = np.argmin(Euclidian_distance)
+            output_distance[idx] = np.amin(Euclidian_distance)
+        if event is not None :
+            event_output = event.copy()
+            event_output.polarity = polarity
+            event_output.ListPolarities= list(np.arange(self.nb_cluster))
+            return event_output, output_distance
+        else :
+            return output_distance
+
+    def norm(self, to_normalize,Norm_Type):
+        if Norm_Type == 'standard':
+            if to_normalize.ndim > 1:
+                norm = np.sqrt(np.sum(to_normalize**2,axis=1))
+            else :
+                norm = np.sqrt(np.sum(to_normalize**2))
+        elif Norm_Type == 'max':
+            if to_normalize.ndim > 1:
+                norm = np.amax(to_normalize, axis=1)
+            else :
+                norm = np.amax(to_normalize)
+
+        # elif Norm_Type == 'both':
+        #     if to_normalize.ndim > 1:
+        #         norm
+        return norm
+    '''
     def fitMP(self, X,l0_sparseness,
                 batch_size=100,NbCycle=1,record_num_batches=100):
         if self.record_each>0:
@@ -372,7 +592,7 @@ class KmeansMaroHomeo(Cluster):
             return dictionary, P_cum
         else:
             return dictionary, P_cum, record
-
+    '''
 
     def update_Pcum(self, P_cum, code):
         """Update the estimated modulation function in place.
@@ -408,22 +628,7 @@ class KmeansMaroHomeo(Cluster):
         return P_cum
 
 
-    def norm(self, to_normalize,Norm_Type):
-        if Norm_Type == 'standard':
-            if to_normalize.ndim > 1:
-                norm = np.sqrt(np.sum(to_normalize**2,axis=1))
-            else :
-                norm = np.sqrt(np.sum(to_normalize**2))
-        elif Norm_Type == 'max':
-            if to_normalize.ndim > 1:
-                norm = np.amax(to_normalize, axis=1)
-            else :
-                norm = np.amax(to_normalize)
 
-        # elif Norm_Type == 'both':
-        #     if to_normalize.ndim > 1:
-        #         norm
-        return norm
 
     def code(self, X, dictionary, P_cum, sparse=False):
         n_samples = X.shape[0]
@@ -460,27 +665,3 @@ class KmeansMaroHomeo(Cluster):
 
     def z_score(self, Pcum, p_c, stick):
         return Pcum.ravel()[(p_c*Pcum.shape[1] - (p_c==1)).astype(np.int) + stick]
-
-
-    def predict(self, STS, event=None, SurfaceFilter=None):
-        if SurfaceFilter == None:
-            to_predict = STS.Surface
-        else :
-            random_selection = np.random.permutation(np.arange(STS.Surface.shape[0]))[:SurfaceFilter]
-            to_predict = STS.Surface[random_selection]
-
-        if self.prototype is None :
-            raise ValueError('Train the Cluster before doing prediction')
-        polarity,output_distance = np.zeros(to_predict.shape[0]).astype(int),np.zeros(to_predict.shape[0])
-
-        for idx,surface in enumerate(to_predict):
-            Euclidian_distance = EuclidianNorm(surface,self.prototype)
-            polarity[idx] = np.argmin(Euclidian_distance)
-            output_distance[idx] = np.amin(Euclidian_distance)
-        if event is not None :
-            event_output = event.copy()
-            event_output.polarity = polarity
-            event_output.ListPolarities= list(np.arange(self.nb_cluster))
-            return event_output, output_distance
-        else :
-            return output_distance

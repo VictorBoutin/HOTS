@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib
+import math
 from pylab import *
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -167,14 +168,22 @@ def DisplayAM(activation_map,scale=1):
 
 def DisplayConvergence(ClusterLayer):
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.2, hspace=0.2)
-    fig = plt.figure(figsize=(10,10/3),subplotpars=subplotpars)
-    ticks = [0,20000,40000,60000]
+    fig = plt.figure(figsize=(10,10/5),subplotpars=subplotpars)
+    #ticks = [0,20000,40000,60000]
+
     for idx,each_Layer in enumerate(ClusterLayer) :
+
+        #print('number of record',each_Layer.record['error'].shape)
+        #print('recordstep',each_Layer.record_each)
         ax = fig.add_subplot(1,len(ClusterLayer),idx+1)
-        ax.set_xticks(ticks)
+        max_x = each_Layer.record['error'].shape[0]*each_Layer.record_each
+        ax.set_xticks([0,roundup(max_x/3,each_Layer.record_each),roundup(2*max_x/3,each_Layer.record_each)])
         to_plot = plt.plot(each_Layer.record['error'])
+        ax.set_title('Convergence Layer {0}'.format(idx+1),fontsize= 8)
         #ax.tick_params(axis='x',length=10)
 
+def roundup(x, step):
+     return int(math.ceil(x / step)) * step
 
 def DisplayHisto(freq,pola):
     plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")

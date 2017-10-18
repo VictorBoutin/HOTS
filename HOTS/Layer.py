@@ -1,6 +1,6 @@
 import numpy as np
 from HOTS.STS import STS
-from HOTS.Cluster import CustomKmeans, KmeansMaro, KmeansMaroHomeo
+from HOTS.Cluster import CustomKmeans, KmeansMaro, KmeansHomeo
 
 class Layer(object):
     '''
@@ -63,6 +63,7 @@ class FilterNHBD(Layer):
         self.output = self.input.filter(filt)
         return self.output
 
+
 class ClusteringLayer(Layer):
     '''
     Class of a layer associating SpatioTemporal surface from input event to a Cluster, and then outputing another event
@@ -70,15 +71,23 @@ class ClusteringLayer(Layer):
         + tau : (int), the time constant of the spatiotemporal surface
         + R : (int), the size of the neighbourhood taken into consideration in the time surface
     '''
-    def __init__(self, tau, R,  ThrFilter=2, verbose=0, mode='standard'):
+    def __init__(self, tau, R,  ThrFilter=0, verbose=0, LearningAlgo='standard', kernel='exponential',eta=None,eta_homeo=None):
         Layer.__init__(self, verbose)
         self.type = 'Layer'
         self.tau = tau
         self.R = R
         self.ThrFilter = ThrFilter
-        self.mode = mode
-        if self.mode not in ['standard','Maro','MaroExp','MaroExpHomeo'] :
-            raise NameError('mode key should be standard ar Maro')
+        self.LearningAlgo = LearningAlgo
+        if self.LearningAlgo not in ['homeo','maro','standard']:
+            raise KeyError('LearningAlgo should be in [homeo,maro,standard]')
+        self.kernel = kernel
+        if self.kernel not in ['linear','exponential']:
+            raise KeyError('[linear,exponential]')
+        self.eta = eta
+        #print(eta)
+        self.eta_homeo = eta_homeo
+        #print(eta_homeo)
+
     def RunLayer(self, event, Cluster):
         '''
         Associate each polarity of the event input to the prototype of the cluster
@@ -90,21 +99,9 @@ class ClusteringLayer(Layer):
         '''
         self.input = event
         self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
-        if self.mode == 'standard':
-            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
-            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = self.input)
-        elif self.mode == 'Maro':
-            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='linear')
-            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
-        elif self.mode == 'MaroExp':
-            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
-            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
-        elif self.mode == 'MaroExpHomeo':
-            Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel='exponential')
-            #event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-            self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = self.input)
+        Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel=self.kernel)
+        event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter) ## Check that THRFilter=0 is equivalent to no Filter
+        self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
         return self.output
 
     def TrainLayer(self, event, nb_cluster, record_each=0, NbCycle=1):
@@ -122,26 +119,17 @@ class ClusteringLayer(Layer):
         '''
         self.input=event
         self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
-        if self.mode == 'standard' :
-            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
+        Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel=self.kernel)
+        event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
+        if self.LearningAlgo == 'standard' :
             self.ClusterLayer = CustomKmeans(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
-            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
-            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = self.input)
-        elif self.mode == 'Maro' :
-            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='linear')
-            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
-            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
-            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
-        elif self.mode == 'MaroExp':
-            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
-            event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
-            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
-            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
-        elif self.mode == 'MaroExpHomeo':
-            Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel='exponential')
-            self.ClusterLayer = KmeansMaroHomeo(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
-            Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
-            self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = self.input)
+        elif self.LearningAlgo == 'maro' :
+            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each,
+                                        eta=self.eta)
+        elif self.LearningAlgo == 'homeo' :
+            self.ClusterLayer = KmeansHomeo(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each,
+                                        eta=self.eta, eta_homeo=self.eta_homeo)
+        Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
+        self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
+
         return self.output, self.ClusterLayer
