@@ -1,4 +1,6 @@
+HOTS.egg-info
 .DS_Store
 .ipynb_checkpoints
 __pycache__
 **/__pycache__
+HOTS/__pycache__
