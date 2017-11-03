@@ -1,8 +1,12 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 import scipy.io
 import numpy as np
 from random import shuffle
 from os import listdir
 from HOTS.Tools import LoadObject
+import numba
+import line_profiler
 
 class Event(object):
     '''
@@ -16,7 +20,7 @@ class Event(object):
         + ChangeIdx : (list) list composed by the last index of event of each event
         + OutOnePolarity : (bool), transform all polarities into 1 polarity
     '''
-    def __init__(self,ImageSize,ListPolarities,OutOnePolarity=False):
+    def __init__(self,ImageSize,ListPolarities=None,OutOnePolarity=False):
         self.polarity = np.zeros(1)
         self.address = np.zeros(1)
         self.time = np.zeros(1)
@@ -27,6 +31,7 @@ class Event(object):
         self.type = 'event'
         self.OutOnePolarity=OutOnePolarity
         ## Idée, faire un mécanisme pour vérifier qu'il n'y a pas d'adresse en dehors de l'image
+
 
     def LoadFromMat(self,path, image_number, verbose=0):
         '''
@@ -64,13 +69,16 @@ class Event(object):
             self.polarity[first_idx:last_idx] = image[2].astype(int)
             first_idx = last_idx
 
+        self.polarity[self.polarity.T==-1] = 0
+        self.polarity = self.polarity.astype(int)
         ## Filter only the wanted polarity
+        self.ListPolarities = np.unique(self.polarity)
         filt = np.in1d(self.polarity,np.array(self.ListPolarities))
         self.filter(filt,mode='itself')
-
         if self.OutOnePolarity == True :
-            self.polarity = np.ones_like(self.polarity)
-            self.ListPolarities = [1]
+            self.polarity = np.zeros_like(self.polarity)
+            self.ListPolarities = [0]
+
 
     def LoadFromBin(self, PathList, verbose=0 ):
         '''
@@ -121,9 +129,10 @@ class Event(object):
         self.filter(filt,mode='itself')
 
         if self.OutOnePolarity == True :
-            self.polarity = np.ones_like(self.polarity)
-            self.ListPolarities = [1]
+            self.polarity = np.zeros_like(self.polarity)
+            self.ListPolarities = [0]
 
+    #@numba.jit(nopython=True)
     def SeparateEachImage(self):
         '''
         find the separation event index if more than one image is represented, and store it into
@@ -138,7 +147,7 @@ class Event(object):
         self.ChangeIdx[:-1] = np.arange(0,comp.shape[0])[comp]
         self.ChangeIdx[-1] = comp.shape[0]
 
-
+    #@numba.jit(nopython=True)
     def copy(self):
         '''
         copy the address, polarity, timing, and event_nb to another event
@@ -155,6 +164,7 @@ class Event(object):
 
         return event_output
 
+    #@numba.jit(nopython=True)
     def filter(self,filt,mode=None):
         '''
         filter the event is mode is 'itself', or output another event else
@@ -179,7 +189,7 @@ class Event(object):
 
 
 
-def SimpleAlphabet(NbTrainingData,NbTestingData,Path=None,LabelPath=None, ClusteringData=None, OutOnePolarity = False, ListPolarities=[-1,1], verbose=0):
+def SimpleAlphabet(NbTrainingData,NbTestingData,Path=None,LabelPath=None, ClusteringData=None, OutOnePolarity = False, ListPolarities=None, verbose=0):
     '''
     Extract the Data from the SimpleAlphabet DataBase :
     INPUT :

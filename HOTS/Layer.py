@@ -1,31 +1,30 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 import numpy as np
 from HOTS.STS import STS
-from HOTS.Cluster import CustomKmeans, KmeansMaro, KmeansHomeo
+from HOTS.KmeansCluster import KmeansLagorce, KmeansMaro
+from HOTS.KmeansHomeoCluster import KmeansHomeo
 
 class Layer(object):
     '''
     Layer is a mother class. A Layer is considered as an object with 2 main attributes :
-        self.input : the event in input
-        self.output : the event in output
-    '''
+        INPUT :
+        + verbose : (<int>) control the verbosity
 
+    '''
     def __init__(self, verbose=0):
-        #self.input = Event()
-        #self.output = event.copy()
         self.verbose = verbose
         self.type = 'void'
 
-    def GenerateAM(self):
-        pass
-
-    def Train(self):
-        if self.type == 'ClusteringLayer':
-            pass
 
 class FilterNHBD(Layer):
     '''
-    General Class for the Filters. This inherit all the methods and attribute of the Layer Class
-    The method of this class correspond to different type of filters
+    Filter that keep the event if the number of event in a neighbour of size [2*neighbourhood+1,2*neighbourhood+1]
+    is over the threshold value
+    INPUT
+        + threshold : (int), specify the minimum number of neighbour
+        + neighbourhood : (int), specify the size of the neighbourhood to take into account
+        + verbose : (<int>) control the verbosity
     '''
     def __init__(self, threshold, neighbourhood, verbose=0):
         Layer.__init__(self, verbose)
@@ -33,13 +32,9 @@ class FilterNHBD(Layer):
         self.threshold = threshold
         self.neighbourhood = neighbourhood
 
-    def RunFilter(self, event):
+    def RunLayer(self, event):
         '''
-        Filter that keep the event if the number of event in a neighbour of size [2*neighbourhood+1,2*neighbourhood+1]
-        is over the threshold value
-        INPUT
-            + threshold : (int), specify the minimum number of neighbour
-            + neighbourhood : (int), specify the size of the neighbourhood to take into account
+
         OUTPUT
             + event : (event object) the filtered event
         '''
@@ -63,29 +58,45 @@ class FilterNHBD(Layer):
         self.output = self.input.filter(filt)
         return self.output
 
-
 class ClusteringLayer(Layer):
     '''
     Class of a layer associating SpatioTemporal surface from input event to a Cluster, and then outputing another event
     INPUT :
-        + tau : (int), the time constant of the spatiotemporal surface
-        + R : (int), the size of the neighbourhood taken into consideration in the time surface
+        + tau : (<int>), the time constant of the spatiotemporal surface
+        + R : (<int>), the size of the neighbourhood taken into consideration in the time surface
+        + ThrFilter :
+        + LearningAlgo : (<string>)
+        + kernel : (<string>)
+        + eta :
+        + eta_homeo :
+        + sigma : (<float>) parameter of filtering in the circular filter. If None, there is no filter applied
+        + verbose : (<int>) control the verbosity
     '''
-    def __init__(self, tau, R,  ThrFilter=0, verbose=0, LearningAlgo='standard', kernel='exponential',eta=None,eta_homeo=None):
+    def __init__(self, tau, R,  ThrFilter=0, LearningAlgo='lagorce', kernel='exponential',\
+                eta=None,eta_homeo=None,sigma=None, verbose=0):
         Layer.__init__(self, verbose)
         self.type = 'Layer'
         self.tau = tau
         self.R = R
         self.ThrFilter = ThrFilter
         self.LearningAlgo = LearningAlgo
-        if self.LearningAlgo not in ['homeo','maro','standard']:
-            raise KeyError('LearningAlgo should be in [homeo,maro,standard]')
+        if self.LearningAlgo not in ['homeo','maro','lagorce']:
+            raise KeyError('LearningAlgo should be in [homeo,maro,lagorce]')
         self.kernel = kernel
         if self.kernel not in ['linear','exponential']:
             raise KeyError('[linear,exponential]')
         self.eta = eta
         #print(eta)
         self.eta_homeo = eta_homeo
+        self.sigma = sigma
+        if self.LearningAlgo == 'lagorce' :
+            self.ClusterLayer = KmeansLagorce(nb_cluster = 0,verbose=self.verbose, to_record=False)
+        elif self.LearningAlgo == 'maro' :
+            self.ClusterLayer = KmeansMaro(nb_cluster = 0,verbose=self.verbose, to_record=False,
+                                        eta=self.eta)
+        elif self.LearningAlgo == 'homeo' :
+            self.ClusterLayer = KmeansHomeo(nb_cluster = 0,verbose=self.verbose, to_record=False,
+                                        eta=self.eta, eta_homeo=self.eta_homeo)
         #print(eta_homeo)
 
     def RunLayer(self, event, Cluster):
@@ -98,13 +109,13 @@ class ClusteringLayer(Layer):
             + self.output : (<object Event>) : Event with new polarities corresponding to the closest cluster center
         '''
         self.input = event
-        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
+        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose,sigma=self.sigma)
         Surface_Layer = self.SpTe_Layer.create(event=self.input, kernel=self.kernel)
         event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter) ## Check that THRFilter=0 is equivalent to no Filter
-        self.output,_ = Cluster.predict(STS=self.SpTe_Layer,event = event_filtered)
+        self.output,_ = Cluster.predict(Surface=self.SpTe_Layer.Surface,event = event_filtered)
         return self.output
 
-    def TrainLayer(self, event, nb_cluster, record_each=0, NbCycle=1):
+    def TrainLayer(self, event, nb_cluster, to_record=False, NbCycle=1):
         '''
         Learn the Cluster
         INPUT :
@@ -118,18 +129,11 @@ class ClusteringLayer(Layer):
             + ClusterLayer (<object Cluster) : Learnt cluster
         '''
         self.input=event
-        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose)
+        self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose, sigma=self.sigma)
         Surface_Layer = self.SpTe_Layer.create(event = self.input, kernel=self.kernel)
         event_filtered, filt = self.SpTe_Layer.FilterRecent(event = self.input, threshold=self.ThrFilter)
-        if self.LearningAlgo == 'standard' :
-            self.ClusterLayer = CustomKmeans(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each)
-        elif self.LearningAlgo == 'maro' :
-            self.ClusterLayer = KmeansMaro(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each,
-                                        eta=self.eta)
-        elif self.LearningAlgo == 'homeo' :
-            self.ClusterLayer = KmeansHomeo(nb_cluster = nb_cluster,verbose=self.verbose, record_each=record_each,
-                                        eta=self.eta, eta_homeo=self.eta_homeo)
+        self.ClusterLayer.nb_cluster, self.ClusterLayer.to_record = nb_cluster, to_record
         Prototype = self.ClusterLayer.fit(self.SpTe_Layer, NbCycle=NbCycle)
-        self.output,_ = self.ClusterLayer.predict(STS=self.SpTe_Layer,event = event_filtered)
+        self.output,_ = self.ClusterLayer.predict(Surface=self.SpTe_Layer.Surface,event = event_filtered)
 
         return self.output, self.ClusterLayer

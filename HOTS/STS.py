@@ -1,8 +1,22 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 import numpy as np
 import time
 
 class STS(object):
-    def __init__(self, tau, R ,verbose=0, initial_time=100, sigma=None):
+    '''
+    Object with spatiotemporal Surface and methods to generate them
+    INPUT :
+        + tau : (<float>) time constant (in second) of the decay of the kernel
+        + R : (<int>) half size of the neighbourhood to consider, 1 time surface (for 1 polarity), will have a
+            size (2*R+1,2*R+1)
+        + initial_time : (<float>) initialization timing value i.e all event will -initial_time as time stamp
+            at initialization
+        + sigma : (<float>) parameter of filtering in the circular filter. If None, there is no filter applied
+        + verbose : (<int>) control the verbosity
+    '''
+
+    def __init__(self, tau, R , initial_time=100, sigma=None, verbose=0):
         self.verbose=verbose
         self.tau = tau
         self.R = R
@@ -16,18 +30,23 @@ class STS(object):
                                          np.arange(-self.R, self.R+1), indexing='ij')
         self.radius = np.sqrt(self.X_p**2 + self.Y_p**2)
         if sigma is None:
-            self.mask = np.ones_like(self.radius)
+            self.mask_circular = np.ones_like(self.radius)
         else:
-            self.mask = np.exp(- .5 * self.radius**2 / self.R **2 / sigma**2 )
-        self.mask = self.mask.reshape((1, self.mask.shape[0]*self.mask.shape[1]))
-
-    #def exponential_kernel(self):
-    #    return
-
-    #def linear_kernel(self):
+            self.mask_circular = np.exp(- .5 * self.radius**2 / self.R **2 / sigma**2 )
+        #self.mask_circular = self.mask_circular.reshape((1, self.mask.shape[0]self.mask.shape[1]))
 
 
     def create(self, event, stop=None, kernel='exponential'):
+        '''
+        Method to generate spatiotemporal surface
+        INPUT :
+            + event : (<object event>) stream of event used to generate the spatiotemporal surface
+            + stop : (<int>) tools to debug, stopping the generation at event number stop
+            + kernel : (<string>) type of kernel to use, could be exponential or linear
+        OUTPUT :
+            + Surface : (<np array>) matrix of size (nb_of_event, nb_polarity*((2*R+1)*(2*R+1)))
+                representing the SpatioTemporalSurface
+        '''
         self.ListPolarities = event.ListPolarities
         self.nb_polarities = len(self.ListPolarities)
 
@@ -48,20 +67,23 @@ class STS(object):
             if t<t_previous:
                 self.ListOfTimeMatrix = np.zeros((self.nb_polarities, self.width, self.height)) - self.initial_time
             x, y = addr + self.R
-            idx_pola = self.ListPolarities.index(pol)
-            self.ListOfTimeMatrix[idx_pola, x, y] = t
+            #idx_pola = self.ListPolarities.index(pol)
+            self.ListOfTimeMatrix[pol, x, y] = t
             #self.LocalTimeMatrix = self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
             self.LocalTimeDiff = t - self.ListOfTimeMatrix[:,(x-self.R):(x+self.R+1),(y-self.R):(y+self.R+1)]
 
             if kernel == 'exponential':
                 #SI = np.exp(-(t-self.LocalTimeMatrix)/self.tau).reshape((len(self.ListPolarities)* self.area))
-                SI = np.exp(-(self.LocalTimeDiff)/self.tau).reshape((len(self.ListPolarities)* self.area))
+                SI = np.exp(-(self.LocalTimeDiff)/self.tau)*self.mask_circular
+                SI2 = SI.reshape((len(self.ListPolarities)*self.area))
+
             elif kernel == 'linear':
                 mask = (self.LocalTimeDiff < self.tau)
-                SI = ((1-self.LocalTimeDiff/self.tau) * mask).reshape((len(self.ListPolarities)* self.area))
+                SI = ((1-self.LocalTimeDiff/self.tau) * mask)*self.mask_circular
+                SI2 = SI.reshape((len(self.ListPolarities)* self.area))
             else :
                 print('error')
-            self.Surface[idx_event,:] = SI#SI*self.mask
+            self.Surface[idx_event,:] = SI2#SI*self.mask
             t_previous = t
             if idx_event == stop:
                 break
@@ -70,20 +92,22 @@ class STS(object):
         if self.verbose != 0:
             print('Generation of SpatioTemporal Surface in ------ {0:.2f} s'.format((tac-timer)))
         return self.Surface
-    '''
-    def FilterRecent(self,event,threshold=2):
-        threshold = threshold*self.R
-        Surf = self.Surface.reshape(self.Surface.shape[0],len(event.ListPolarities),self.area)
-        filt = np.all(np.sum(Surf, axis = 2) > np.ones_like(event.ListPolarities)*threshold/len(event.ListPolarities), axis = 1)
-        self.Surface = self.Surface[filt]
-        event_output = event.filter(filt)
 
-        return event_output, filt
-    '''
-    def FilterRecent(self,event,threshold=2):
+    def FilterRecent(self,event,threshold=0):
+        '''
+        Method to filter the event. Only the event associated with a surface having enought recent event
+            in the neighbourhood with be kept
+        INPUT :
+            + event : (<object event>) stream of event to filter
+            + threshold : (<float>), filtering parameter. 0 means no filter
+        OUTPUT :
+            + event_output : (<object event>) filtered stream of event
+            + filt : (<np array>) bolean vector of size (nb_of_input event). A False is assocated with the
+                removed event and a True is assocated with kept event
+        '''
+        #if self.verbose > 0:
+        #    print('threshold', threshold)
         threshold = threshold*self.R
-        if self.verbose > 0:
-            print('threshold', threshold)
         filt = np.sum(self.Surface, axis = 1) > threshold
         self.Surface = self.Surface[filt]
         event_output = event.filter(filt)
