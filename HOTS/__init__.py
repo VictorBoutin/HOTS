@@ -1,3 +1,5 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function, absolute_import
@@ -18,5 +20,5 @@ Pattern Recognition' Xavier Lagorce, Garrick Orchard, Fransesco Gallupi, And Rya
 from HOTS import STS
 from HOTS import Event
 from HOTS import Monitor
-from HOTS import Cluster
+from HOTS import KmeansCluster
 from HOTS import Tools
