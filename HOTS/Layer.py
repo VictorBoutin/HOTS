@@ -8,7 +8,7 @@ from HOTS.KmeansHomeoCluster import KmeansHomeo
 class Layer(object):
     '''
     Layer is a mother class. A Layer is considered as an object with 2 main attributes :
-        INPUT :
+    INPUT :
         + verbose : (<int>) control the verbosity
 
     '''
@@ -126,7 +126,7 @@ class ClusteringLayer(Layer):
 
         OUTPUT :
             + output (<object event>) : Event with new polarities corresponding to the closest cluster center
-            + ClusterLayer (<object Cluster) : Learnt cluster
+            + ClusterLayer (<object Cluster>) : Learnt cluster
         '''
         self.input=event
         self.SpTe_Layer = STS(tau=self.tau, R=self.R, verbose=self.verbose, sigma=self.sigma)

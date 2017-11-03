@@ -1,3 +1,5 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 import numpy as np
 import matplotlib
 import math
@@ -80,7 +82,7 @@ def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
             ax.set_title('Cluster {0}, polarity {1}'.format(idx_surf,idx_pol),fontsize= 10)
             idx=idx+1
 
-
+'''
 def DisplaySurface2D(Surface,nb_polarities,scale=1):
     if scale == 2 :
         subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.3, hspace=0)
@@ -96,6 +98,8 @@ def DisplaySurface2D(Surface,nb_polarities,scale=1):
     disp = dispo(nb_polarities,nb_center,scale=scale)
     #fig, axs = plt.subplots(nb_cluster, nb_polarities, figsize=(10, 10*nb_cluster/nb_polarities), subplotpars=subplotpars)
     fig = plt.figure(figsize=(12,12*disp[0]/disp[1]),subplotpars=subplotpars)
+    print(disp[0],disp[1])
+    print(12,12*disp[0]/disp[1])
     dim_patch = int(np.sqrt(area))
     idx=0
     for idx_center, each_center in enumerate(Surface):
@@ -111,6 +115,42 @@ def DisplaySurface2D(Surface,nb_polarities,scale=1):
             ax.set_xticks(())
             ax.set_yticks(())
             ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 8)
+            idx=idx+1
+'''
+
+def DisplaySurface2D(Surface,nb_polarities):
+    #if scale == 2 :
+    #    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.3, hspace=0)
+    #else :
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0.5)
+    nb_center = Surface.shape[0]#len(ClusterCenter)
+
+    if len(Surface.shape) == 2:
+        area = int(Surface.shape[1]/nb_polarities)
+        Surface = Surface.reshape((nb_center,nb_polarities,area))
+    else :
+        area = int(Surface.shape[2])
+
+    fig = plt.figure(figsize=(nb_center*0.6,nb_polarities*0.6),subplotpars=subplotpars)
+    #fig = plt.figure(figsize=(12,12*nb_polarities/nb_center),subplotpars=subplotpars)
+    #print(12,12*disp[0]/disp[1])
+    dim_patch = int(np.sqrt(area))
+    idx=0
+    for idx_center, each_center in enumerate(Surface):
+        #print('idx_center', idx_center)
+        for idx_pol, surface in enumerate(each_center):
+            #print('idx_pol', idx_pol)
+            ax = fig.add_subplot(nb_polarities ,nb_center,idx_center+idx_pol*nb_center+1)
+            #ax = axs[idx_center][idx_pol]
+            #ax = fig.add_subplot(12, 12, idx + 1)
+            #cmax = np.max(np.abs(surface))
+            cmin = 0
+            cmax = 1
+            ax.imshow(surface.reshape((dim_patch,dim_patch)), cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
+                    interpolation='nearest')
+            ax.set_xticks(())
+            ax.set_yticks(())
+            ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 6)
             idx=idx+1
 
 def GenerateAM(Event,Cluster, mode='separate',nb_image=0):
@@ -166,7 +206,40 @@ def DisplayAM(activation_map,scale=1):
         ax.set_title('Map Cl {0}'.format(idx_map),fontsize= 8)
         idx=idx+1
 
-def DisplayConvergence(ClusterLayer):
+def DisplayConvergence(ClusterLayer,to_display=['error'],eta=None,eta_homeo=None):
+    if type(ClusterLayer) is not list:
+        ClusterLayer = [ClusterLayer]
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
+    fig = plt.figure(figsize=(10,2*len(ClusterLayer)),subplotpars=subplotpars)
+    #ticks = [0,20000,40000,60000]
+    location = 1
+    for idx,each_Layer in enumerate(ClusterLayer) :
+        for idx_type, each_type in enumerate(to_display):
+            each_type = str(each_type)
+            #print('number of record',each_Layer.record['error'].shape)
+            #print('recordstep',each_Layer.record_each)
+            ax = fig.add_subplot(len(ClusterLayer),len(to_display),location)
+            max_x = each_Layer.record[each_type].shape[0]*each_Layer.record_each
+            ax.set_xticks([0,roundup(max_x/3,each_Layer.record_each),roundup(2*max_x/3,each_Layer.record_each)])
+            if each_type=='error':
+                to_plot = plt.plot(each_Layer.record[each_type])
+                if (eta is not None) and (eta_homeo is not None) :
+                    ax.set_title('Convergence Layer {0} with eta : {1} and eta_homeo : {2}'.format(idx+1,eta,eta_homeo),fontsize= 8)
+                else :
+                    ax.set_title('Convergence Layer {0}'.format(idx+1),fontsize= 8)
+            elif each_type=='histo':
+
+                to_plot = plt.bar(np.arange(each_Layer.nb_cluster),each_Layer.record[each_type].values[-1],\
+                width=np.diff(np.arange(each_Layer.nb_cluster+1)), ec="k", align="edge")
+                if (eta is not None) and (eta_homeo is not None) :
+                    ax.set_title('Histogram of activation at Layer {0} with eta : {1} and eta_homeo : {2}'.format(idx+1,eta,eta_homeo),fontsize= 8)
+                else :
+                    ax.set_title('Histogram of activation at Layer {0}'.format(idx+1),fontsize= 8)
+            location +=1
+            #print(location)
+            #ax.tick_params(axis='x',length=10)
+
+def Displ(ClusterLayer):
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.2, hspace=0.2)
     fig = plt.figure(figsize=(10,10/5),subplotpars=subplotpars)
     #ticks = [0,20000,40000,60000]
@@ -186,4 +259,4 @@ def roundup(x, step):
      return int(math.ceil(x / step)) * step
 
 def DisplayHisto(freq,pola):
-    plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")
+    return plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")
