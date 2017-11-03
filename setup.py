@@ -1,3 +1,5 @@
+__author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
+
 import os
 from setuptools import setup, find_packages
 
