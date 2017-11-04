@@ -73,7 +73,7 @@ class ClusteringLayer(Layer):
         + verbose : (<int>) control the verbosity
     '''
     def __init__(self, tau, R,  ThrFilter=0, LearningAlgo='lagorce', kernel='exponential',\
-                eta=None,eta_homeo=None,sigma=None, verbose=0):
+                eta=None,eta_homeo=None, C=None, sigma=None, verbose=0):
         Layer.__init__(self, verbose)
         self.type = 'Layer'
         self.tau = tau
@@ -88,6 +88,7 @@ class ClusteringLayer(Layer):
         self.eta = eta
         #print(eta)
         self.eta_homeo = eta_homeo
+        self.C = C
         self.sigma = sigma
         if self.LearningAlgo == 'lagorce' :
             self.ClusterLayer = KmeansLagorce(nb_cluster = 0,verbose=self.verbose, to_record=False)
@@ -96,7 +97,7 @@ class ClusteringLayer(Layer):
                                         eta=self.eta)
         elif self.LearningAlgo == 'homeo' :
             self.ClusterLayer = KmeansHomeo(nb_cluster = 0,verbose=self.verbose, to_record=False,
-                                        eta=self.eta, eta_homeo=self.eta_homeo)
+                                        eta=self.eta, eta_homeo=self.eta_homeo, C=self.C)
         #print(eta_homeo)
 
     def RunLayer(self, event, Cluster):

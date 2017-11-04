@@ -46,7 +46,7 @@ class KmeansHomeo(Cluster):
 
         self.verbose = verbose
 
-    def fit(self, STS, batch_size=100, NbCycle=1, record_num_batches=1000):
+    def fit(self, STS, batch_size=100, NbCycle=1, record_num_batches=10000):
         '''
         Methods to learn prototypes fitting data
         INPUT :
