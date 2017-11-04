@@ -70,7 +70,15 @@ def LoadObject(filename):
 #def Load(filename):
 
 def GenerateHistogram(event):
-    #if len(self.output.ChangeIdx) == 1:
+    '''
+    Generate an histogram for each sample.
+    INPUT :
+        + event (<object event>) stream on event on which we want to create an histogram
+    OUTPUT :
+        + freq = (<np.array>) of size (nb_samples,nb_clusters) representing the histrogram of cluster
+            activation for each sample
+        + pola = (<np.array>) of size (nb_sample,nb_clusters) representing the index of cluster activation   
+    '''
     last_change=0
     for idx, each_change in enumerate(event.ChangeIdx):
         freq, pola = np.histogram(event.polarity[last_change:each_change+1],bins=len(event.ListPolarities))
@@ -80,6 +88,3 @@ def GenerateHistogram(event):
             freq_mat = freq
         last_change=each_change
     return freq_mat, pola
-
-#def GenerateLabelList(label_list):
-#

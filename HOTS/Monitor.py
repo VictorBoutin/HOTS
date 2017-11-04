@@ -8,6 +8,16 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 def dispo(pola,nb_center=None,scale=1):
+    '''
+    helper function fr graph position
+    INPUT :
+        + pola : (<int>) number of polarity
+        + nb_center: (<int>) number of cluster center
+        + scale : (<int>) scaling parameter, if 1 graph will have 6 patch
+            per column, if 2 graph will have 6 patch per column
+    OUTPUT :
+        + dispo : (<tuple>) disposition in the format (nb_line,nb_column)
+    '''
     if nb_center is None : nb_center =1
     if scale == 1 :
         if nb_center*pola >= 8:
@@ -22,6 +32,12 @@ def dispo(pola,nb_center=None,scale=1):
     return dispo
 
 def DisplayImage(list_of_event, multi_image=0):
+    '''
+    Function to accumulated event as an image
+    INPUT :
+        + list_of_event : (<list>) of (<object event>) stream of event to display
+        + multi_image : (<int>) option to display another image than the first one
+    '''
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
     if type(list_of_event) is not list:
         raise TypeError('the argument of the function should be a list of event object')
@@ -45,6 +61,14 @@ def DisplayImage(list_of_event, multi_image=0):
         idx += 1
 
 def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
+    '''
+    Function to display 3D graph of spatiotemporal surface
+    INPUT :
+        + Surface : (<np.array>) of size (nb_surface,nb_polarity*(2*R+1)*(2*R+1))
+        + nb_polarities : (<int>) number of polarities per surface
+        + angle : (<tuple>) of (<int>) describing the displaying angle of the
+            spatiotemporal surface
+    '''
     mini = np.amin(Surface)-0.01
     maxi = np.max(Surface)+0.01
     cNorm = matplotlib.colors.Normalize(vmin=mini-0.1, vmax=maxi+0.1)
@@ -82,46 +106,13 @@ def DisplaySurface3D(Surface,nb_polarities,angle=(20,90)):
             ax.set_title('Cluster {0}, polarity {1}'.format(idx_surf,idx_pol),fontsize= 10)
             idx=idx+1
 
-'''
-def DisplaySurface2D(Surface,nb_polarities,scale=1):
-    if scale == 2 :
-        subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.3, hspace=0)
-    else :
-        subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
-    nb_center = Surface.shape[0]#len(ClusterCenter)
-
-    if len(Surface.shape) == 2:
-        area = int(Surface.shape[1]/nb_polarities)
-        Surface = Surface.reshape((nb_center,nb_polarities,area))
-    else :
-        area = int(Surface.shape[2])
-    disp = dispo(nb_polarities,nb_center,scale=scale)
-    #fig, axs = plt.subplots(nb_cluster, nb_polarities, figsize=(10, 10*nb_cluster/nb_polarities), subplotpars=subplotpars)
-    fig = plt.figure(figsize=(12,12*disp[0]/disp[1]),subplotpars=subplotpars)
-    print(disp[0],disp[1])
-    print(12,12*disp[0]/disp[1])
-    dim_patch = int(np.sqrt(area))
-    idx=0
-    for idx_center, each_center in enumerate(Surface):
-        for idx_pol, surface in enumerate(each_center):
-            ax = fig.add_subplot(disp[0],disp[1],idx+1)
-            #ax = axs[idx_center][idx_pol]
-            #ax = fig.add_subplot(12, 12, idx + 1)
-            #cmax = np.max(np.abs(surface))
-            cmin = 0
-            cmax = 1
-            ax.imshow(surface.reshape((dim_patch,dim_patch)), cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
-                    interpolation='nearest')
-            ax.set_xticks(())
-            ax.set_yticks(())
-            ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 8)
-            idx=idx+1
-'''
-
 def DisplaySurface2D(Surface,nb_polarities):
-    #if scale == 2 :
-    #    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.3, hspace=0)
-    #else :
+    '''
+    Function to display 2D graph of spatiotemporal surface
+    INPUT :
+        + Surface : (<np.array>) of size (nb_surface,nb_polarity*(2*R+1)*(2*R+1))
+        + nb_polarities : (<int>) number of polarities per surface
+    '''
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0.5)
     nb_center = Surface.shape[0]#len(ClusterCenter)
 
@@ -130,20 +121,12 @@ def DisplaySurface2D(Surface,nb_polarities):
         Surface = Surface.reshape((nb_center,nb_polarities,area))
     else :
         area = int(Surface.shape[2])
-
     fig = plt.figure(figsize=(nb_center*0.6,nb_polarities*0.6),subplotpars=subplotpars)
-    #fig = plt.figure(figsize=(12,12*nb_polarities/nb_center),subplotpars=subplotpars)
-    #print(12,12*disp[0]/disp[1])
     dim_patch = int(np.sqrt(area))
     idx=0
     for idx_center, each_center in enumerate(Surface):
-        #print('idx_center', idx_center)
         for idx_pol, surface in enumerate(each_center):
-            #print('idx_pol', idx_pol)
             ax = fig.add_subplot(nb_polarities ,nb_center,idx_center+idx_pol*nb_center+1)
-            #ax = axs[idx_center][idx_pol]
-            #ax = fig.add_subplot(12, 12, idx + 1)
-            #cmax = np.max(np.abs(surface))
             cmin = 0
             cmax = 1
             ax.imshow(surface.reshape((dim_patch,dim_patch)), cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
@@ -153,7 +136,19 @@ def DisplaySurface2D(Surface,nb_polarities):
             ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 6)
             idx=idx+1
 
-def GenerateAM(Event,Cluster, mode='separate',nb_image=0):
+def GenerateAM(Event,Cluster, mode='separate'):
+    '''
+    Function to generate activation map from a stream of event
+    INPUT :
+        + Event : (<object event>) holding the polarities and addresses to generate the activation map
+        + Cluster : (<object Cluster>) holding the cluster centers
+        + mode : (<string>) parameter to choose if we want to separate each activation map in different
+            image ('separate'), or if we want to gather all activation map into one images ('global')
+    OUTPUT :
+        + activation_map : (<np.array>) represnting the activation map .
+            size : (nb_polarities,image_height,image_width) if mode='separate'
+                if mode = 'global' the size is (1,image_height,image_width)
+    '''
     nb_cluster = Cluster.nb_cluster
     if mode == 'separate':
         activation_map = np.zeros((nb_cluster,Event.ImageSize[0],Event.ImageSize[1]))
@@ -161,19 +156,6 @@ def GenerateAM(Event,Cluster, mode='separate',nb_image=0):
         activation_map = np.zeros(Event.ImageSize)
     else :
         raise KeyError('the mode argument is not valid')
-    ## TO DO : Managing multi_image
-    #if nb_image > len(Event.ChangeIdx):
-    #    raise SizeError('This image number does not exist')
-    #else :
-    #    print('Iamhere')
-    #    if nb_image == 0:
-    #        min_idx = 0
-    #        max_idx = Event.ChangeIdx[nb_image]
-    #    else :
-    #        min_idx = Event.ChangeIdx[nb_image-1]
-    #        max_idx = Event.ChangeIdx[nb_image]
-    #        print(min_idx,max_idx)
-    #for idx_event,ev in enumerate(Event.polarity[min_idx:max_idx]) :
     for idx_event,ev in enumerate(Event.polarity[0:Event.ChangeIdx[0]]) :
         address_int = Event.address[idx_event,:]
         x,y = address_int[0],address_int[1]
@@ -190,6 +172,14 @@ def GenerateAM(Event,Cluster, mode='separate',nb_image=0):
     return activation_map
 
 def DisplayAM(activation_map,scale=1):
+    '''
+    Function display the activation map
+    INPUT :
+        + activation_map : (<np.array>) represnting the activation map .
+            size : (nb_polarities,image_height,image_width) if mode='separate'
+                if mode = 'global' the size is (1,image_height,image_width)
+        + scale : (<int>) scaling parameter to determine the number of image per line
+    '''
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
     nb_map = activation_map.shape[0]#len(ClusterCenter)
     disp = dispo(nb_map,scale=scale)
@@ -207,17 +197,23 @@ def DisplayAM(activation_map,scale=1):
         idx=idx+1
 
 def DisplayConvergence(ClusterLayer,to_display=['error'],eta=None,eta_homeo=None):
+    '''
+    Function to display the monitored variable during the training
+    INPUT :
+        + ClusterLayer : (<list>) of (<object Cluster>) holding the cluster object for each layer
+        + to_display : (<list>) of (<string>) to indicate which monitoring variable to display. 'error' will plot the L2 error,
+            'histo' will the activated cluster histogram
+        + eta : (<float>) to add eta in the name of the graph
+        + eta_homeo : (<float>) to add eta_homeo in the name of the graph
+    '''
     if type(ClusterLayer) is not list:
         ClusterLayer = [ClusterLayer]
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.2)
     fig = plt.figure(figsize=(10,2*len(ClusterLayer)),subplotpars=subplotpars)
-    #ticks = [0,20000,40000,60000]
     location = 1
     for idx,each_Layer in enumerate(ClusterLayer) :
         for idx_type, each_type in enumerate(to_display):
             each_type = str(each_type)
-            #print('number of record',each_Layer.record['error'].shape)
-            #print('recordstep',each_Layer.record_each)
             ax = fig.add_subplot(len(ClusterLayer),len(to_display),location)
             max_x = each_Layer.record[each_type].shape[0]*each_Layer.record_each
             ax.set_xticks([0,roundup(max_x/3,each_Layer.record_each),roundup(2*max_x/3,each_Layer.record_each)])
@@ -236,13 +232,17 @@ def DisplayConvergence(ClusterLayer,to_display=['error'],eta=None,eta_homeo=None
                 else :
                     ax.set_title('Histogram of activation at Layer {0}'.format(idx+1),fontsize= 8)
             location +=1
-            #print(location)
-            #ax.tick_params(axis='x',length=10)
 
+def roundup(x, step):
+     return int(math.ceil(x / step)) * step
+
+def DisplayHisto(freq,pola):
+    return plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")
+
+'''
 def Displ(ClusterLayer):
     subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.2, hspace=0.2)
     fig = plt.figure(figsize=(10,10/5),subplotpars=subplotpars)
-    #ticks = [0,20000,40000,60000]
 
     for idx,each_Layer in enumerate(ClusterLayer) :
 
@@ -254,9 +254,4 @@ def Displ(ClusterLayer):
         to_plot = plt.plot(each_Layer.record['error'])
         ax.set_title('Convergence Layer {0}'.format(idx+1),fontsize= 8)
         #ax.tick_params(axis='x',length=10)
-
-def roundup(x, step):
-     return int(math.ceil(x / step)) * step
-
-def DisplayHisto(freq,pola):
-    return plt.bar(pola[:-1],freq,width=np.diff(pola), ec="k", align="edge")
+'''

@@ -20,7 +20,7 @@ class KmeansHomeo(Cluster):
         + verbose : (<int>) control the verbosity
         + nb_quant : (<int>) controlling the number of quantization of histogram for the
             histogram equalization
-        + C : (<int>) parameter to reshape the prior
+        + C : (<int>) rescale parameter
         + NormType : (<string>) indicate the type of normalization we want to use, could
             be 'max' or 'standard'
         + eta : (<float>) learning paramter for the prototype updates
@@ -70,11 +70,7 @@ class KmeansHomeo(Cluster):
         norm = self.norm(X_train, Norm_Type=self.Norm_Type)
         X_train /= norm[:, np.newaxis]
         prototype = X_train[:self.nb_cluster,:].copy()
-
-
         self.P_cum = np.linspace(0, 1, self.nb_quant, endpoint=True)[np.newaxis, :] * np.ones((self.nb_cluster, 1))
-
-
         n_batches = n_samples // batch_size
 
         np.random.shuffle(X_train)
@@ -101,7 +97,7 @@ class KmeansHomeo(Cluster):
             for i_sample in range(n_samples):
                 c = corr[i_sample, :].copy()
                 #ind = np.argmax(c)
-                ind  = np.argmax(self.z_score(self.P_cum, self.prior(c), stick))
+                ind  = np.argmax(self.quantile(self.P_cum, self.rescaling(c), stick))
                 sparse_code[i_sample, ind] = c[ind]
                 Si = this_X[i_sample,:]
                 Ck = prototype[ind,:]
@@ -154,7 +150,7 @@ class KmeansHomeo(Cluster):
         INPUT :
             + P_cum: (<np.array>) matrix of shape (n_samples, nb_quant) Value of the modulation
                 function at the previous iteration.
-            + code: (<np.array>) matrix of shape (n_samples, nbcluster) Data matrix
+            + code: (<np.array>) matrix of shape (n_samples, nbcluster) encoded data
         OUTPUT :
             + P_cum: (<np.array>) matrix of shape (n_samples, nb_quant) updated value
                 of the modulation function.
@@ -167,11 +163,22 @@ class KmeansHomeo(Cluster):
 
     def code(self, X, dictionary, P_cum, sparse=False):
         '''
+        Warning : This function this could be the same than the predict function in the Cluster mother class !
         code the data
         INPUT :
-
+            + X : (<np.array>) matrix od size (nb_samples, nb_polarity*(2*R+1)*(2*R+1)) of spatiotemporal
+                surface we want to code
+            + dictionary : (<np.array>) matrix of size(nb_cluster, nb_polarity*(2*R+1)*(2*R+1)) of the
+                prototype as they are at this step of the learning
+            + P_cum: (<np.array>) matrix of shape (n_samples, nb_quant) Value of the modulation
+                function at the previous iteration.
+            + sparse : (<boolean>) parameter to define the format of the coding matrix. If sparse is True, the
+                coding matrix is of size (nb_sample,nb_cluster) with zeros evrywhere and 1 on the matching prototype.
+                If sparse is False, the coding matrix is of size (nb_sample), indicating the index of the
+                matching prototype for each sample
         OUTPUT :
-
+            + polarity : (<np.array>) of size depending of the sparse parameter, represeting a vector a index of closest
+                prototype to each sample
         '''
         n_samples = X.shape[0]
         corr = X @ dictionary.T
@@ -183,7 +190,7 @@ class KmeansHomeo(Cluster):
 
         for i_sample in range(n_samples):
             c = corr[i_sample, :].copy()
-            ind  = np.argmax(self.z_score(P_cum, self.prior(c), stick))
+            ind  = np.argmax(self.quantile(P_cum, self.rescaling(c), stick))
             if sparse == False :
                 polarity[i_sample] = ind
             else:
@@ -194,35 +201,41 @@ class KmeansHomeo(Cluster):
         '''
         calculate quantized histogram
         INPUT :
-
+            + code: (<np.array>) matrix of shape (n_samples, nbcluster) encoded data
         OUTPUT :
-
+            + P_cum: (<np.array>) matrix of shape (n_samples, nb_quant) value
+                of the modulation function, corresponding to the quantized cumulative function
         '''
         n_samples = code.shape[0]
         P_cum = np.zeros((self.nb_cluster, self.nb_quant))
         for i in range(self.nb_cluster):
-            p, bins = np.histogram(self.prior(code[:, i]), bins=np.linspace(0., 1, self.nb_quant, endpoint=True), density=True)
+            p, bins = np.histogram(self.rescaling(code[:, i]), bins=np.linspace(0., 1, self.nb_quant, endpoint=True), density=True)
             p /= p.sum()
             P_cum[i, :] = np.hstack((0, np.cumsum(p)))
         return P_cum
 
-    def prior(self, code):
+    def rescaling(self, code):
         '''
         scale the code with decreasing exponential
         INPUT :
-
+            + code: (<np.array>) matrix of shape (n_samples, nbcluster) representing encoded data
         OUTPUT :
+            + (<np.array>) matrix of shape (n_samples, nbcluster), scaled version of the code matrix
         '''
         if self.do_sym:
             return 1.-np.exp(-np.abs(code)/self.C)
         else:
             return (1.-np.exp(-code/self.C))*(code>0)
 
-    def z_score(self, Pcum, p_c, stick):
+    def quantile(self, Pcum, p_c, stick):
         '''
         scale the code with decreasing exponential
         INPUT :
-
+            + P_cum : (<np.array>) matrix of shape (n_samples, nb_quant) value
+                of the modulation function, corresponding to the quantized cumulative function
+            + p_c : (<np.array>) matrix of shape (n_samples, nbcluster), scaled version of the code matrix
+            + stick : (<np.array>) matrix of shape (nb_quant), representing the index of quantization
         OUTPUT :
+            + quantized value of the cumulative probability distribution
         '''
         return Pcum.ravel()[(p_c*Pcum.shape[1] - (p_c==1)).astype(np.int) + stick]
