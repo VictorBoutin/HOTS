@@ -2,8 +2,8 @@ __author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
 
 import numpy as np
 from HOTS.STS import STS
-from HOTS.KmeansCluster import KmeansLagorce, KmeansMaro
-from HOTS.KmeansHomeoCluster import KmeansHomeo
+from HOTS.KmeansCluster import KmeansLagorce, KmeansMaro, KmeansCompare
+from HOTS.KmeansHomeoCluster import KmeansHomeo, KmeansWithoutHomeo
 
 class Layer(object):
     '''
@@ -80,8 +80,8 @@ class ClusteringLayer(Layer):
         self.R = R
         self.ThrFilter = ThrFilter
         self.LearningAlgo = LearningAlgo
-        if self.LearningAlgo not in ['homeo','maro','lagorce']:
-            raise KeyError('LearningAlgo should be in [homeo,maro,lagorce]')
+        if self.LearningAlgo not in ['homeo','maro','lagorce','comp']:
+            raise KeyError('LearningAlgo should be in [homeo,maro,lagorce,comp]')
         self.kernel = kernel
         if self.kernel not in ['linear','exponential']:
             raise KeyError('[linear,exponential]')
@@ -97,6 +97,9 @@ class ClusteringLayer(Layer):
                                         eta=self.eta)
         elif self.LearningAlgo == 'homeo' :
             self.ClusterLayer = KmeansHomeo(nb_cluster = 0,verbose=self.verbose, to_record=False,
+                                        eta=self.eta, eta_homeo=self.eta_homeo, C=self.C)
+        elif self.LearningAlgo == 'comp' :
+            self.ClusterLayer = KmeansWithoutHomeo(nb_cluster = 0,verbose=self.verbose, to_record=False,
                                         eta=self.eta, eta_homeo=self.eta_homeo, C=self.C)
         #print(eta_homeo)
 

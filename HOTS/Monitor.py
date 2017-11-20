@@ -113,7 +113,7 @@ def DisplaySurface2D(Surface,nb_polarities):
         + Surface : (<np.array>) of size (nb_surface,nb_polarity*(2*R+1)*(2*R+1))
         + nb_polarities : (<int>) number of polarities per surface
     '''
-    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0.5)
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0.1)
     nb_center = Surface.shape[0]#len(ClusterCenter)
 
     if len(Surface.shape) == 2:
@@ -133,7 +133,7 @@ def DisplaySurface2D(Surface,nb_polarities):
                     interpolation='nearest')
             ax.set_xticks(())
             ax.set_yticks(())
-            ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 6)
+            #ax.set_title('Cl {0} - Pol {1}'.format(idx_center,idx_pol),fontsize= 6)
             idx=idx+1
 
 def GenerateAM(Event,Cluster, mode='separate'):
