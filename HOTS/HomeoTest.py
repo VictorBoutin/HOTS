@@ -25,7 +25,7 @@ class KmeansWithoutHomeo(Cluster):
         + eta_homeo : (<float>) learning parameter for the histogram equalization
     '''
     def __init__(self,nb_cluster, to_record=False, verbose=0, nb_quant=100,
-                    C=6, Norm_Type='max',eta=0.000005, eta_homeo=0.0005, l0_sparseness=5):
+                    C=6, Norm_Type='max',eta=0.000005, eta_homeo=0.0005, l0_sparseness  =5):
         Cluster.__init__(self, nb_cluster, to_record, verbose)
         self.nb_quant = nb_quant
         self.C = C

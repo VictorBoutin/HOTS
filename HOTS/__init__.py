@@ -22,3 +22,5 @@ from HOTS import Event
 from HOTS import Monitor
 from HOTS import KmeansCluster
 from HOTS import Tools
+from HOTS import KmeansHomeoCluster
+from HOTS import HomeoTest

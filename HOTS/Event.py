@@ -7,6 +7,7 @@ from os import listdir
 from HOTS.Tools import LoadObject
 import numba
 import line_profiler
+import HOTS.libUnpackAtis as ua
 
 class Event(object):
     '''
@@ -325,3 +326,37 @@ def load_file_list(mainpath = './Train/'):
     shuffle(file_name)
     file_name=np.asarray(file_name)
     return file_name
+
+def GenerateRandomSquare(x,y,t,p,seed=33,image_size=(30,30)):
+    np.random.seed(seed=seed)
+    event = Event(ImageSize=image_size)
+    event.address = np.zeros((8,2), dtype=int)
+    event.address[0,:] = (x - 1, y - 1)
+    event.address[1,:] = (x - 1, y)
+    event.address[2,:] = (x - 1, y + 1)
+    event.address[3,:] = (x, y - 1)
+    event.address[4,:] = (x, y + 1)
+    event.address[5,:] = (x + 1, y - 1)
+    event.address[6,:] = (x + 1, y)
+    event.address[7,:] = (x + 1, y + 1)
+    event.address = event.address[np.random.permutation(8), :].T
+    event.time = np.zeros(8, dtype=int)
+    for idt in np.arange(event.time.size):
+        event.time[idt] = t
+        t += np.random.randint(0,10)
+    event.polarity = np.ones(8, dtype = int) * p
+    return event
+
+def LoadGestureDB(filepath,OutOnePolarity=False):
+    ts, c, p, removed_events = ua.readATIS_td(filepath, orig_at_zero = True, \
+        drop_negative_dt = True, verbose = False)
+    event = Event(ImageSize=(304,240))
+    #print(p.shape)
+    event.time = ts * 1e-6
+    if OutOnePolarity == False :
+        event.polarity = p
+    else :
+        event.polarity = np.zeros_like(p)
+    event.ListPolarities = np.unique(event.polarity)
+    event.address = c
+    return event

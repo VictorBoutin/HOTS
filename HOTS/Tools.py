@@ -77,7 +77,7 @@ def GenerateHistogram(event):
     OUTPUT :
         + freq = (<np.array>) of size (nb_samples,nb_clusters) representing the histrogram of cluster
             activation for each sample
-        + pola = (<np.array>) of size (nb_sample,nb_clusters) representing the index of cluster activation   
+        + pola = (<np.array>) of size (nb_sample,nb_clusters) representing the index of cluster activation
     '''
     last_change=0
     for idx, each_change in enumerate(event.ChangeIdx):

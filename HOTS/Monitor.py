@@ -113,7 +113,7 @@ def DisplaySurface2D(Surface,nb_polarities):
         + Surface : (<np.array>) of size (nb_surface,nb_polarity*(2*R+1)*(2*R+1))
         + nb_polarities : (<int>) number of polarities per surface
     '''
-    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0, hspace=0.1)
+    subplotpars = matplotlib.figure.SubplotParams(left=0., right=1., bottom=0., top=1., wspace=0.1, hspace=0.1)
     nb_center = Surface.shape[0]#len(ClusterCenter)
 
     if len(Surface.shape) == 2:
@@ -127,8 +127,10 @@ def DisplaySurface2D(Surface,nb_polarities):
     for idx_center, each_center in enumerate(Surface):
         for idx_pol, surface in enumerate(each_center):
             ax = fig.add_subplot(nb_polarities ,nb_center,idx_center+idx_pol*nb_center+1)
+
             cmin = 0
-            cmax = 1
+            cmax = np.max(surface)
+            #print(cmax)
             ax.imshow(surface.reshape((dim_patch,dim_patch)), cmap=plt.cm.gray_r, vmin=cmin, vmax=cmax,
                     interpolation='nearest')
             ax.set_xticks(())

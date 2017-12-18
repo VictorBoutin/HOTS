@@ -3,7 +3,8 @@ __author__ = "(c) Victor Boutin & Laurent Perrinet INT - CNRS"
 import numpy as np
 from HOTS.STS import STS
 from HOTS.KmeansCluster import KmeansLagorce, KmeansMaro, KmeansCompare
-from HOTS.KmeansHomeoCluster import KmeansHomeo, KmeansWithoutHomeo
+from HOTS.KmeansHomeoCluster import KmeansHomeo#
+from HOTS.HomeoTest import KmeansWithoutHomeo
 
 class Layer(object):
     '''
@@ -73,7 +74,7 @@ class ClusteringLayer(Layer):
         + verbose : (<int>) control the verbosity
     '''
     def __init__(self, tau, R,  ThrFilter=0, LearningAlgo='lagorce', kernel='exponential',\
-                eta=None,eta_homeo=None, C=None, sigma=None, verbose=0):
+                eta=None, eta_homeo=None, C=None, sigma=None, l0_sparseness=5, verbose=0):
         Layer.__init__(self, verbose)
         self.type = 'Layer'
         self.tau = tau
@@ -90,6 +91,7 @@ class ClusteringLayer(Layer):
         self.eta_homeo = eta_homeo
         self.C = C
         self.sigma = sigma
+        self.l0_sparseness = l0_sparseness
         if self.LearningAlgo == 'lagorce' :
             self.ClusterLayer = KmeansLagorce(nb_cluster = 0,verbose=self.verbose, to_record=False)
         elif self.LearningAlgo == 'maro' :
@@ -100,7 +102,8 @@ class ClusteringLayer(Layer):
                                         eta=self.eta, eta_homeo=self.eta_homeo, C=self.C)
         elif self.LearningAlgo == 'comp' :
             self.ClusterLayer = KmeansWithoutHomeo(nb_cluster = 0,verbose=self.verbose, to_record=False,
-                                        eta=self.eta, eta_homeo=self.eta_homeo, C=self.C)
+                                        eta=self.eta, eta_homeo=self.eta_homeo, C=self.C,
+                                        l0_sparseness=self.l0_sparseness,Norm_Type='standard')
         #print(eta_homeo)
 
     def RunLayer(self, event, Cluster):
