@@ -121,7 +121,7 @@ class GestExp(object):
             nb_file = np.sum(np.array(self.dbspecs.dblabels) == 1)
         if self.verbose !=0:
             print('Training on {0} files'.format(nb_file))
-        self.Prototype = np.random.rand(self.nb_dico,25)
+        self.Prototype = np.random.rand(self.nb_dico,self.nb_polarities * SpTe_Layer1.RF_diam*SpTe_Layer1.RF_diam)
         self.Prototype /= np.linalg.norm(self.Prototype,ord=2,axis=1)[:,None]
         Modulation = np.ones(self.nb_dico)
         idx_train = 1
